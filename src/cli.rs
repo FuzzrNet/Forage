@@ -5,8 +5,6 @@ use log::{info, warn};
 use structopt::StructOpt;
 use tokio::signal;
 
-use crate::hash;
-
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
 #[structopt(name = "forage")]

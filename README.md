@@ -2,7 +2,7 @@
 
 > *Forage is for Storage*
 
-![Tree being struck by lightning (royalty-free stock photof from pixabay)](forage.jpg)
+![Tree being struck by lightning (royalty-free stock photo from pixabay)](forage.jpg)
 
 - Remote storage: Open storage channels to a remote storage provider over Tor
 - Lightweight: Platform-optimized using Blake3-based hash, verified streaming, and encryption algorithms
@@ -30,7 +30,7 @@
 
 - [x] Bao encoding
 - [x] Bao verification
-- [ ] Bao extraction
+- [x] Bao extraction
 
 ### 0.0.2 - Tor
 
