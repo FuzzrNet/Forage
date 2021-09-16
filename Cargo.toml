@@ -1,0 +1,16 @@
+[package]
+name = "forage"
+version = "0.0.1"
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.44"
+bao = "0.11.0"
+blake3 = "1.0.0"
+hex = "0.4.3"
+log = "0.4.14"
+pretty_env_logger = "0.4.0"
+rand = "0.8.4"
+structopt = "0.3.23"
+tokio = { version = "1.11.0", features = ["full"] }
+torut = "0.2.0"
