@@ -57,8 +57,9 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "bao"
-version = "0.11.0"
-source = "git+https://github.com/oconnor663/bao.git?rev=af38412ed04293aaf604eb34e35776096f9f00e8#af38412ed04293aaf604eb34e35776096f9f00e8"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50f51ef7e16e840728c95d71045a7f67fb0c17e0c03560b0aa99ae607bd31a3c"
 dependencies = [
  "arrayref",
  "arrayvec",
