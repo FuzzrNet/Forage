@@ -2,6 +2,9 @@
 name = "forage"
 version = "0.0.1"
 edition = "2018"
+description = "Forage is for Storage"
+repository = "https://github.com/FuzzrNet/Forage"
+license = "Unlicense"
 
 [build]
 rustflags = "-Ctarget-feature=+avx"
@@ -13,7 +16,7 @@ rayon = ["blake3/rayon"]
 
 [dependencies]
 anyhow = "1.0.44"
-bao = { git = "https://github.com/oconnor663/bao.git", rev = "af38412ed04293aaf604eb34e35776096f9f00e8" }
+bao = "0.12.0"
 blake3 = "1.0.0"
 hex = "0.4.3"
 log = "0.4.14"
