@@ -1,4 +1,5 @@
 mod cli;
+mod data;
 mod hash;
 mod net;
 

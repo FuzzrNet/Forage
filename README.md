@@ -87,3 +87,5 @@ Focus: UX
 ### Future
 
 After this basic functionality exists, more exciting features are planned!
+
+![Kabbalistic Tree of Life, because, woo. What does it mean!?](tree.gif)
