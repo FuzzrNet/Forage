@@ -2,6 +2,9 @@
 name = "forage"
 version = "0.0.1"
 edition = "2018"
+description = "Forage is for Storage"
+repository = "https://github.com/FuzzrNet/Forage"
+license = "UNLICENSE"
 
 [build]
 rustflags = "-Ctarget-feature=+avx"
