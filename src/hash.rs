@@ -51,7 +51,7 @@ pub fn encode(path: &Path) -> Result<(Hash, usize), Error> {
 const SLICE_LEN: u64 = 4096;
 
 #[allow(dead_code)]
-pub fn check(hash_hex: &str) -> Result<(), Error> {
+pub fn verify(hash_hex: &str) -> Result<(), Error> {
     // Client
     let encoded_file = File::open("/tmp/forage_test")?;
     let range = encoded_file.metadata()?.len() / 1024;
@@ -163,7 +163,7 @@ mod tests {
         let (bao_hash, orig_len) = encode(orig_path)?;
         assert_eq!(bao_hash.to_hex().as_str(), BAO_HASH);
 
-        check(BAO_HASH)?;
+        verify(BAO_HASH)?;
 
         let out_path = Path::new("/tmp/forage.jpg");
         extract(out_path, &bao_hash, 0, orig_len)?;

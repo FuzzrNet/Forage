@@ -32,7 +32,12 @@
 - [x] Bao verification
 - [x] Bao extraction
 
-### 0.0.2 - Tor
+### 0.0.2 - Persistence
+
+- [ ] Append new files to central log file
+- [ ] Extraction from appended log
+
+### 0.0.3 - Tor
 
 - [ ] Generate Onion v3 address
 - [ ] Open & Receive TCP socket over Tor hidden service
