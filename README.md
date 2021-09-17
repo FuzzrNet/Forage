@@ -12,15 +12,16 @@
 
 **Caution!** This is experimental, potentially dangerous technology that hasn't yet been audited!
 
-## Dependencies
+## Notable Dependencies
 
 - Embedded
-    - [Blake3 cryptographic hash algorithm](https://github.com/BLAKE3-team/BLAKE3)
-    - [Bao Verified Streaming for Provable Data Possession](https://github.com/oconnor663/bao)
-    - [XChaCha8Blake3Siv encryption](https://github.com/PaulGrandperrin/XChaCha8Blake3Siv)
-    - [Torut Tor controller](https://lib.rs/crates/torut)
-    - [zstd_safe dictionary compression](https://github.com/gyscos/zstd-rs)
-    - [Rusqlite embedded database](https://github.com/rusqlite/rusqlite)
+    - [x] [Blake3 cryptographic hash algorithm](https://github.com/BLAKE3-team/BLAKE3)
+    - [x] [Bao Verified Streaming for Provable Data Possession](https://github.com/oconnor663/bao)
+    - [ ] [XChaCha8Blake3Siv encryption](https://github.com/PaulGrandperrin/XChaCha8Blake3Siv)
+    - [ ] [Torut Tor controller](https://lib.rs/crates/torut)
+    - [ ] [zstd_safe dictionary compression](https://github.com/gyscos/zstd-rs)
+    - [x] [Rusqlite embedded SQL database](https://github.com/rusqlite/rusqlite)
+    - [x] [Sled embedded keystore](https://github.com/spacejam/sled)
 - External
     - Local Tor SOCKS proxy
 
@@ -34,6 +35,7 @@
 
 ### 0.0.2 - Persistence
 
+- [ ] Sled for path lookup
 - [ ] Append new files to central log file
 - [ ] Extraction from appended log
 

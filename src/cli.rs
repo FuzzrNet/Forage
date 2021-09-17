@@ -1,9 +1,11 @@
-use std::path::PathBuf;
+use std::{env::current_dir, path::PathBuf};
 
 use anyhow::Result;
 use log::{info, warn};
 use structopt::StructOpt;
 use tokio::signal;
+
+use crate::data::add_path;
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
@@ -111,8 +113,8 @@ pub async fn try_main() -> Result<()> {
         Commands::CloseChannel { address, force } => unimplemented!(),
         Commands::Store { path } => {
             info!("Storing a file at path {}...", path.to_str().unwrap());
-            warn!("Not yet implemented");
-            todo!();
+            add_path(&path, current_dir()?).await?;
+            Ok(())
         }
         Commands::ListFiles { prefix, depth } => unimplemented!(),
         Commands::Retrieve { prefix, out } => {
