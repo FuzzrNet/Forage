@@ -2,6 +2,7 @@ use std::{
     convert::TryInto,
     fs::{File, OpenOptions},
     io::{ErrorKind, Read, Seek, SeekFrom, Write},
+    os::unix::prelude::MetadataExt,
     path::Path,
 };
 
@@ -14,11 +15,17 @@ use log::{debug, error};
 use rand::Rng;
 use sled::IVec;
 
+pub struct EncodedFile {
+    pub bao_hash: bao::Hash,
+    pub read: u64,
+    pub written: u64,
+    pub offset: u64,
+}
+
 /// Encode a file by its path using bao encoding.
 /// Returns bao hash, bytes read, bytes written, and the offset from which the bytes were written.
-pub fn encode(path: &Path) -> Result<(bao::Hash, usize, usize, u64)> {
+pub fn encode(path: &Path) -> Result<EncodedFile> {
     let mut file = File::open(path)?;
-    let orig_len = file.metadata()?.len();
 
     let mut encoded_file = OpenOptions::new()
         .read(true)
@@ -31,13 +38,16 @@ pub fn encode(path: &Path) -> Result<(bao::Hash, usize, usize, u64)> {
     let offset = encoded_file.stream_position()?;
     let mut encoder = Encoder::new(&encoded_file);
 
-    let (read, written) = copy_reader_to_writer(&mut file, &mut encoder, orig_len as usize)?;
+    let read = copy_reader_to_writer(&mut file, &mut encoder, 0)? as u64;
+    let bao_hash = encoder.finalize()?;
+    let written = encoded_file.metadata()?.size() - offset;
 
-    assert_eq!(read, orig_len as usize);
-
-    let hash = encoder.finalize()?;
-
-    Ok((hash, read, written, offset))
+    Ok(EncodedFile {
+        bao_hash,
+        read,
+        written,
+        offset,
+    })
 }
 
 const SLICE_LEN: u64 = 1024;
@@ -75,7 +85,7 @@ pub fn verify(hash_hex: &str) -> Result<()> {
     }
 }
 
-pub fn extract(out: &Path, hash: &bao::Hash, offset: u64, orig_len: usize) -> Result<usize> {
+pub fn extract(out: &Path, hash: &bao::Hash, offset: u64, orig_len: u64) -> Result<usize> {
     let encoded_file = File::open("/tmp/forage_test")?;
     let mut extracted_file = OpenOptions::new()
         .read(true)
@@ -88,11 +98,11 @@ pub fn extract(out: &Path, hash: &bao::Hash, offset: u64, orig_len: usize) -> Re
 
     let extractor = SliceExtractor::new(encoded_file, offset, encoded_len);
     let mut decoder = SliceDecoder::new(extractor, hash, offset, encoded_len);
-    let (_, bytes_written) = copy_reader_to_writer(&mut decoder, &mut extracted_file, orig_len)?;
+    let bytes_read = copy_reader_to_writer(&mut decoder, &mut extracted_file, orig_len as usize)?;
 
-    debug!("bytes written: {}", bytes_written);
+    debug!("bytes written: {}", bytes_read);
 
-    Ok(bytes_written)
+    Ok(bytes_read)
 }
 
 pub fn parse_bao_hash(hash_hex: &str) -> Result<bao::Hash> {
@@ -131,20 +141,18 @@ pub fn infer_mime_type(path: &Path) -> Result<String> {
     Ok(mime_type)
 }
 
-/// The original file length is provided so as to never read beyond that.
 fn copy_reader_to_writer(
     reader: &mut impl Read,
     writer: &mut impl Write,
     orig_len: usize,
-) -> Result<(usize, usize)> {
+) -> Result<usize> {
     // At least 16 KiB is necessary to use AVX-512 with BLAKE3.
     let mut buf = [0; 65536];
     let mut read = 0;
-    let mut written = 0;
 
     loop {
         let len = match reader.read(&mut buf) {
-            Ok(0) => return Ok((read, written)),
+            Ok(0) => return Ok(read),
             Ok(len) => len,
             Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
             Err(e) => return Err(e.into()),
@@ -153,12 +161,11 @@ fn copy_reader_to_writer(
         read += len;
 
         // Truncate output if we're about to exceed the original length
-        if written + len > orig_len {
-            writer.write_all(&buf[..orig_len - written])?;
-            return Ok((read, written));
+        if orig_len > 0 && (read + len > orig_len) {
+            writer.write_all(&buf[..orig_len - read])?;
+            return Ok(read);
         } else {
             writer.write_all(&buf[..len])?;
-            written += len;
         }
     }
 }
@@ -175,13 +182,22 @@ mod tests {
         let orig_path = Path::new("forage.jpg");
         assert_eq!(hash_file(orig_path)?.to_hex().as_str(), FILE_HASH);
 
-        let (bao_hash, orig_len, _, _) = encode(orig_path)?;
+        let EncodedFile {
+            bao_hash,
+            read,
+            written,
+            offset,
+        } = encode(orig_path)?;
+
+        assert_eq!(read, 81155);
+        assert_eq!(written, 172438);
+        assert_eq!(offset, 0);
         assert_eq!(bao_hash.to_hex().as_str(), BAO_HASH);
 
         verify(BAO_HASH)?;
 
         let out_path = Path::new("/tmp/forage.jpg");
-        extract(out_path, &bao_hash, 0, orig_len)?;
+        extract(out_path, &bao_hash, 0, read)?;
         assert_eq!(hash_file(out_path)?.to_hex().as_str(), FILE_HASH);
 
         Ok(())

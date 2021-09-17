@@ -16,7 +16,7 @@ use tokio::sync::Mutex;
 use crate::{
     config::CONFIG,
     file::{walk_dir, Offset},
-    hash::{encode, hash_file, infer_mime_type, ivec_to_blake3_hash},
+    hash::{encode, hash_file, infer_mime_type, ivec_to_blake3_hash, EncodedFile},
 };
 
 /// Databases
@@ -177,7 +177,12 @@ pub async fn add_path(path: &Path, cwd: PathBuf) -> Result<()> {
 
     for file in files {
         let blake3_hash = hash_file(&file)?;
-        let (bao_hash, size, len, offset) = encode(&file)?;
+        let EncodedFile {
+            bao_hash,
+            read: size,
+            written,
+            offset,
+        } = encode(&file)?;
 
         let parent_rev = DB_KV
             .open_tree(PATHS_TREE)?
@@ -192,8 +197,8 @@ pub async fn add_path(path: &Path, cwd: PathBuf) -> Result<()> {
             blake3_hash,
             bao_hash,
             offset: Offset::new(offset),
-            len: (len / 1024) as u32,
-            size: size as u64,
+            len: (written / 1024) as u32,
+            size,
             cwd: cwd.to_owned(),
             absolute_path: file,
             parent_rev,
@@ -205,7 +210,7 @@ pub async fn add_path(path: &Path, cwd: PathBuf) -> Result<()> {
 
         add_file(file).await?;
 
-        bytes += len;
+        bytes += written;
     }
 
     info!(
