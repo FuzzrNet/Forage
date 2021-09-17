@@ -35,13 +35,21 @@
 
 ### 0.0.2 - Persistence
 
-- [ ] Sled for path lookup
-- [ ] Append new files to central log file
+- [x] Sled for path lookup
+- [ ] `file` SQL
+    - [x] Schema
+    - [x] Insert
+    - [ ] Query
+- [x] Append new files to central log file
 - [ ] Extraction from appended log
 
 ### 0.0.3 - Tor
 
 - [ ] Generate Onion v3 address
+- [ ] `peer` schema
+    - [x] Schema
+    - [ ] Insert
+    - [ ] Query
 - [ ] Open & Receive TCP socket over Tor hidden service
 
 ### 0.1.0 - Proof of Concept
@@ -77,13 +85,14 @@ Focus: UX
 
 - [ ] Can add files to an existing storage channel without a local copy of data by decoding local Blake3 digest and providing additional bytes
     - [ ] Appended bytes can be verified in-full by storage provider
-- [ ] Multiple files can be stored
-- [ ] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
+- [x] Multiple files can be stored
+- [x] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
 - [ ] Files are compressed using zstd dictionary compression
 - [ ] Individual files can be retrieved from storage client's log on storage provider
 
 ### 0.2.1
 
+- [ ] Complex volume and storage layouts
 - [ ] Log files can be compacted and offset truncation accounted for
 
 ### Future
