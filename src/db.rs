@@ -98,7 +98,7 @@ fn init_usr_cfg() -> Result<UsrCfg> {
         Some(fs) => fs.to_vec(),
         None => {
             let mut rng = rand::thread_rng();
-            let mut file_salt = vec![0; 64];
+            let mut file_salt = vec![0; 32];
             rng.fill_bytes(&mut file_salt);
 
             DB_KV

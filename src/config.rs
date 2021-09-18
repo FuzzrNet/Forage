@@ -119,3 +119,9 @@ pub async fn get_storage_path() -> Result<PathBuf> {
         Ok(PathBuf::from(&cfg.volumes[0].path))
     }
 }
+
+pub async fn get_data_dir() -> Result<PathBuf> {
+    let cfg = get_cfg().await?;
+
+    Ok(cfg.forage_data_dir)
+}

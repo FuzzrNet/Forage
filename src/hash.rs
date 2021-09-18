@@ -161,9 +161,9 @@ fn copy_reader_to_writer(reader: &mut impl Read, writer: &mut impl Write) -> Res
 mod tests {
     use super::*;
 
-    const BLAKE3_HASH: &str = "626393cd8bcd4a25c6923140007fb37cc1fb5578ce7f67f5bacfb1c9299eebfd";
+    const BLAKE3_HASH: &str = "bce2e13684b952c97d76484689ca2da88abe251820f7dcb4bec5b4b3a218e3b3";
     const BAO_HASH: &str = "621aa075e15290f8730e9a1a09e5aa07a7ba5fd7ab3e0980258538ff751a8010";
-    const SALT: &str = "59cec9faf1ded7d195150aadc6d8d811";
+    const SALT: &str = "d970c0e931dc490a842e04f4e9daa8e5e55d9875f53327e4ecc5e3280e7122ed";
 
     #[tokio::test]
     async fn integration() -> Result<()> {
