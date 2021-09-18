@@ -57,7 +57,7 @@ pub async fn process_path(path: &Path, cwd: PathBuf) -> Result<()> {
             read: size,
             written,
             offset,
-        } = encode(&file, &blake3_hash.to_hex().to_string())?;
+        } = encode(&file, &blake3_hash.to_hex().to_string()).await?;
 
         let parent_rev = get_parent_rev(file.to_str().unwrap(), blake3_hash.as_bytes())?;
         let mime_type = infer_mime_type(&file)?;

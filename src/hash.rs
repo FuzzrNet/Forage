@@ -14,6 +14,8 @@ use bao::{
 use log::{debug, error};
 use rand::Rng;
 
+use crate::config::get_storage_path;
+
 pub struct EncodedFileInfo {
     pub bao_hash: bao::Hash,
     pub read: u64,
@@ -23,14 +25,16 @@ pub struct EncodedFileInfo {
 
 /// Encode a file by its path using bao encoding.
 /// Returns bao hash, bytes read, bytes written, and the offset from which the bytes were written.
-pub fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
+pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
     let mut file = File::open(path)?;
 
+    // Eventually this will need to be moved into a different function and replaced with a network call
     let mut encoded_file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(format!("/tmp/forage/{}", hash_hex))?; // Goes to /tmp because this will eventually changed into a network call
+        .truncate(true)
+        .open(get_storage_path().await?.join(hash_hex))?;
 
     encoded_file.seek(SeekFrom::End(0))?;
     let offset = encoded_file.stream_position()?;
@@ -50,10 +54,10 @@ pub fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
 
 const SLICE_LEN: u64 = 1024;
 
-pub fn verify(hash_hex: &str) -> Result<()> {
+pub async fn verify(bao_hash: &bao::Hash, blake3_hash: &str) -> Result<()> {
     // Client
     // TODO: data::get_file
-    let encoded_file = File::open("/tmp/forage_test")?;
+    let encoded_file = File::open(get_storage_path().await?.join(blake3_hash))?;
     let range = encoded_file.metadata()?.len() / SLICE_LEN;
     let mut rng = rand::thread_rng();
     let slice_start = rng.gen_range(0..range);
@@ -64,15 +68,14 @@ pub fn verify(hash_hex: &str) -> Result<()> {
     extractor.read_to_end(&mut slice)?;
 
     // Client
-    let hash = parse_bao_hash(hash_hex)?;
-    let mut decoder = SliceDecoder::new(&*slice, &hash, slice_start, SLICE_LEN);
+    let mut decoder = SliceDecoder::new(&*slice, bao_hash, slice_start, SLICE_LEN);
 
     let mut decoded = vec![];
     match decoder.read_to_end(&mut decoded) {
         Ok(_) => Ok(()),
         Err(err) => match err.kind() {
             ErrorKind::InvalidData => {
-                error!("Invalid data for hash: {}", hash.to_hex());
+                error!("Invalid data for hash: {}", bao_hash.to_hex());
                 Err(err.into())
             }
             _ => {
@@ -83,8 +86,8 @@ pub fn verify(hash_hex: &str) -> Result<()> {
     }
 }
 
-pub fn extract(out: &Path, hash: &bao::Hash, offset: u64) -> Result<usize> {
-    let encoded_file = File::open("/tmp/forage_test")?;
+pub async fn extract(out: &Path, bao_hash: &bao::Hash, blake3_hash: &str) -> Result<usize> {
+    let encoded_file = File::open(get_storage_path().await?.join(blake3_hash))?;
     let mut extracted_file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -94,8 +97,8 @@ pub fn extract(out: &Path, hash: &bao::Hash, offset: u64) -> Result<usize> {
 
     let encoded_len = encoded_file.metadata()?.len();
 
-    let extractor = SliceExtractor::new(encoded_file, offset, encoded_len);
-    let mut decoder = SliceDecoder::new(extractor, hash, offset, encoded_len);
+    let extractor = SliceExtractor::new(encoded_file, 0, encoded_len);
+    let mut decoder = SliceDecoder::new(extractor, bao_hash, 0, encoded_len);
     let bytes_read = copy_reader_to_writer(&mut decoder, &mut extracted_file)?;
 
     debug!("bytes written: {}", bytes_read);
@@ -158,37 +161,39 @@ fn copy_reader_to_writer(reader: &mut impl Read, writer: &mut impl Write) -> Res
 mod tests {
     use super::*;
 
-    const FORAGE_HASH: &str = "621aa075e15290f8730e9a1a09e5aa07a7ba5fd7ab3e0980258538ff751a8010";
+    const BLAKE3_HASH: &str = "626393cd8bcd4a25c6923140007fb37cc1fb5578ce7f67f5bacfb1c9299eebfd";
+    const BAO_HASH: &str = "621aa075e15290f8730e9a1a09e5aa07a7ba5fd7ab3e0980258538ff751a8010";
     const SALT: &str = "59cec9faf1ded7d195150aadc6d8d811";
 
-    #[test]
-    fn integration() -> Result<()> {
+    #[tokio::test]
+    async fn integration() -> Result<()> {
         let mut salt1 = hex::decode(SALT)?;
         let mut salt2 = hex::decode(SALT)?;
 
         let orig_path = Path::new("forage.jpg");
-        let hash = hash_file(orig_path, &mut salt1)?.to_hex();
-        assert_eq!(hash.as_str(), FORAGE_HASH);
+        let blake3_hash = hash_file(orig_path, &mut salt1)?.to_hex();
+        assert_eq!(&blake3_hash, BLAKE3_HASH);
 
         let EncodedFileInfo {
             bao_hash,
             read,
             written,
             offset,
-        } = encode(orig_path, hash.as_str())?;
+        } = encode(orig_path, &blake3_hash).await?;
 
         assert_eq!(read, 81155);
         assert_eq!(written, 86219);
         assert_eq!(offset, 0);
-        assert_eq!(bao_hash.to_hex().as_str(), FORAGE_HASH);
+        assert_eq!(bao_hash.to_hex().as_str(), BAO_HASH);
 
-        verify(bao_hash.to_hex().as_str())?;
+        verify(&bao_hash, &blake3_hash).await?;
 
         let out_path = Path::new("/tmp/forage.jpg");
-        extract(out_path, &bao_hash, 0)?;
+        extract(out_path, &bao_hash, &blake3_hash).await?;
+
         assert_eq!(
             hash_file(out_path, &mut salt2)?.to_hex().as_str(),
-            FORAGE_HASH
+            BLAKE3_HASH
         );
 
         Ok(())

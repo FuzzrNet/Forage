@@ -9,7 +9,7 @@ use rusqlite::{named_params, Connection};
 use sled::{Config, Db, IVec, Mode};
 use tokio::sync::Mutex;
 
-use crate::{config::ENV_CONFIG, file::Offset};
+use crate::{config::ENV_CFG, file::Offset};
 
 /// # Databases
 
@@ -24,7 +24,7 @@ const PATHS_TREE: &str = "paths:";
 static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
     Arc::new(
         Config::default()
-            .path(ENV_CONFIG.config_dir.join("sled_kv"))
+            .path(ENV_CFG.cfg_dir.join("sled_kv"))
             .mode(Mode::LowSpace) // Since this uses Tor, disk IO will not be a bottleneck
             .use_compression(true)
             .compression_factor(19)
@@ -43,8 +43,8 @@ static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
 
 /// ### Creates schemas, keeps a connection
 static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
-    let conn = Connection::open(ENV_CONFIG.config_dir.join("sqlite").join("forage.db3"))
-        .unwrap_or_else(|e| {
+    let conn =
+        Connection::open(ENV_CFG.cfg_dir.join("sqlite").join("forage.db3")).unwrap_or_else(|e| {
             error!(
                 "Trouble opening SQLite database: {}. Using a temporary in-memory database.",
                 e
@@ -85,12 +85,12 @@ static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
 });
 
 /// ## Persisted User Config
-pub struct UsrConfig {
+pub struct UsrCfg {
     pub file_salt: Vec<u8>,
 }
 
 /// ### Salt for file hashes is generated and then persisted so data can be de-duplicated without revealing its original hash
-fn init_usr_config() -> Result<UsrConfig> {
+fn init_usr_cfg() -> Result<UsrCfg> {
     let file_salt = match DB_KV
         .open_tree(USR_CONFIG_TREE)?
         .get(USR_CONFIG_FILE_SALT)?
@@ -109,10 +109,10 @@ fn init_usr_config() -> Result<UsrConfig> {
         }
     };
 
-    Ok(UsrConfig { file_salt })
+    Ok(UsrCfg { file_salt })
 }
 
-pub static USR_CONFIG: Lazy<UsrConfig> = Lazy::new(|| init_usr_config().unwrap());
+pub static USR_CONFIG: Lazy<UsrCfg> = Lazy::new(|| init_usr_cfg().unwrap());
 
 /// # Queries
 
