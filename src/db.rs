@@ -24,7 +24,7 @@ const PATHS_TREE: &str = "paths:";
 static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
     Arc::new(
         Config::default()
-            .path(ENV_CFG.cfg_dir.join("sled_kv"))
+            .path(ENV_CFG.forage_cfg_dir.join("sled_kv"))
             .mode(Mode::LowSpace) // Since this uses Tor, disk IO will not be a bottleneck
             .use_compression(true)
             .compression_factor(19)
@@ -43,8 +43,8 @@ static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
 
 /// ### Creates schemas, keeps a connection
 static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
-    let conn =
-        Connection::open(ENV_CFG.cfg_dir.join("sqlite").join("forage.db3")).unwrap_or_else(|e| {
+    let conn = Connection::open(ENV_CFG.forage_cfg_dir.join("sqlite").join("forage.db3"))
+        .unwrap_or_else(|e| {
             error!(
                 "Trouble opening SQLite database: {}. Using a temporary in-memory database.",
                 e
@@ -134,7 +134,7 @@ pub struct FileInfo {
 }
 
 /// ### Adds a file to SQL DB
-pub async fn add_file(file: FileInfo) -> Result<()> {
+pub async fn insert_file(file: FileInfo) -> Result<()> {
     let blake3_hash: String = file.blake3_hash.to_hex().to_string();
     let bao_hash: String = file.bao_hash.to_hex().to_string();
     let offset: u64 = file.offset.get();
@@ -199,7 +199,7 @@ pub fn ivec_to_blake3_hash(hash_bytes: IVec) -> Result<blake3::Hash> {
     Ok(hash_array.into())
 }
 
-pub fn get_parent_rev(file_path: &str, hash_bytes: &[u8]) -> Result<Option<blake3::Hash>> {
+pub fn upsert_parent_rev(file_path: &str, hash_bytes: &[u8]) -> Result<Option<blake3::Hash>> {
     Ok(DB_KV
         .open_tree(PATHS_TREE)?
         .insert(file_path, hash_bytes)?

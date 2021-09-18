@@ -10,7 +10,7 @@ use log::info;
 use walkdir::WalkDir;
 
 use crate::{
-    db::{add_file, get_parent_rev, FileInfo, USR_CONFIG},
+    db::{insert_file, upsert_parent_rev, FileInfo, USR_CONFIG},
     hash::{encode, hash_file, infer_mime_type, EncodedFileInfo},
 };
 
@@ -59,7 +59,7 @@ pub async fn process_path(path: &Path, cwd: PathBuf) -> Result<()> {
             offset,
         } = encode(&file, &blake3_hash.to_hex().to_string()).await?;
 
-        let parent_rev = get_parent_rev(file.to_str().unwrap(), blake3_hash.as_bytes())?;
+        let parent_rev = upsert_parent_rev(file.to_str().unwrap(), blake3_hash.as_bytes())?;
         let mime_type = infer_mime_type(&file)?;
         let metadata = File::open(&file)?.metadata()?;
 
@@ -77,7 +77,7 @@ pub async fn process_path(path: &Path, cwd: PathBuf) -> Result<()> {
             date_accessed: DateTime::from(metadata.accessed()?),
         };
 
-        add_file(file).await?;
+        insert_file(file).await?;
 
         bytes += written;
     }

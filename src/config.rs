@@ -1,50 +1,66 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use anyhow::Result;
 use directories_next::{BaseDirs, UserDirs};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use tokio::{fs::OpenOptions, io::AsyncReadExt};
+use tokio::{
+    fs::{create_dir_all, OpenOptions},
+    io::AsyncReadExt,
+};
 
 pub struct EnvCfg {
-    pub home_dir: PathBuf,
-    pub cfg_dir: PathBuf,
-    pub cfg_path: PathBuf,
+    pub usr_home_dir: PathBuf,
+    pub forage_cfg_dir: PathBuf,
+    pub forage_cfg_file: PathBuf,
 }
 
 fn init_env_cfg() -> Result<EnvCfg> {
     let user_dirs = UserDirs::new().unwrap();
     let base_dirs = BaseDirs::new().unwrap();
 
-    let home_dir = user_dirs.home_dir().join("Forage");
-    let cfg_dir = base_dirs.config_dir().join("forage");
+    let usr_home_dir = user_dirs.home_dir().to_path_buf();
 
-    std::fs::create_dir_all(&home_dir)?;
-    std::fs::create_dir_all(&cfg_dir)?;
+    let forage_cfg_dir = env::var("FORAGE_CFG_DIR")
+        .map(|v| PathBuf::from(v))
+        .unwrap_or(base_dirs.config_dir().join("forage"));
 
-    let cfg_path = cfg_dir.join("cfg.toml");
+    let forage_cfg_file = forage_cfg_dir.join("cfg.toml");
 
     Ok(EnvCfg {
-        home_dir,
-        cfg_dir,
-        cfg_path,
+        usr_home_dir,
+        forage_cfg_dir,
+        forage_cfg_file,
     })
 }
 
 pub static ENV_CFG: Lazy<EnvCfg> = Lazy::new(|| init_env_cfg().unwrap());
 
 #[derive(Deserialize)]
-pub struct Volume {
+struct VolumeEntry {
     path: String,   // Path to mounted volume
     allocated: u64, // Allocated capacity in megabytes
 }
 
 #[derive(Deserialize)]
+struct SysCfgFile {
+    forage_data_dir: Option<String>,
+    volume: Option<Vec<VolumeEntry>>,
+}
+
+pub struct Volume {
+    path: PathBuf,
+    allocated: u64,
+}
+
 pub struct SysCfg {
-    volume: Option<Vec<Volume>>,
+    forage_data_dir: PathBuf,
+    volumes: Vec<Volume>,
 }
 
 pub async fn get_cfg() -> Result<SysCfg> {
+    create_dir_all(&ENV_CFG.forage_cfg_dir).await?;
+
     let mut cfg_contents = vec![];
 
     // Creates new empty config file if it doesn't exist
@@ -53,33 +69,51 @@ pub async fn get_cfg() -> Result<SysCfg> {
         .write(true)
         .create(true)
         .truncate(false)
-        .open(&ENV_CFG.cfg_path)
+        .open(&ENV_CFG.forage_cfg_file)
         .await?
         .read_to_end(&mut cfg_contents)
         .await?;
 
-    let mut sys_cfg: SysCfg = toml::from_slice(&cfg_contents)?;
+    let sys_cfg: SysCfgFile = toml::from_slice(&cfg_contents)?;
 
-    if sys_cfg.volume.is_none() {
-        sys_cfg.volume = Some(vec![Volume {
-            path: "/tmp/forage_data".to_owned(),
+    let volumes = sys_cfg
+        .volume
+        .map(|vols| {
+            vols.iter()
+                .map(|vol| Volume {
+                    path: PathBuf::from(&vol.path),
+                    allocated: vol.allocated,
+                })
+                .collect()
+        })
+        .unwrap_or(vec![Volume {
+            path: PathBuf::from("/tmp/forage_data"),
             allocated: 1,
         }]);
+
+    for vol in volumes.iter() {
+        create_dir_all(&vol.path).await?;
     }
 
-    for vol in sys_cfg.volume.as_ref().unwrap() {
-        tokio::fs::create_dir_all(&vol.path).await?;
-    }
+    let forage_data_dir = sys_cfg
+        .forage_data_dir
+        .map(|s| PathBuf::from(s))
+        .unwrap_or(ENV_CFG.usr_home_dir.join("Forage Data"));
 
-    Ok(sys_cfg)
+    create_dir_all(&forage_data_dir).await?;
+
+    Ok(SysCfg {
+        forage_data_dir,
+        volumes,
+    })
 }
 
 pub async fn get_storage_path() -> Result<PathBuf> {
     let cfg = get_cfg().await?;
 
-    if cfg.volume.as_ref().unwrap().len() > 1 {
+    if cfg.volumes.len() > 1 {
         unimplemented!();
     } else {
-        Ok(PathBuf::from(&cfg.volume.unwrap()[0].path))
+        Ok(PathBuf::from(&cfg.volumes[0].path))
     }
 }
