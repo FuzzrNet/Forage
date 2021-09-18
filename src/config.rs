@@ -22,8 +22,8 @@ fn init_env_cfg() -> Result<EnvCfg> {
     let usr_home_dir = user_dirs.home_dir().to_path_buf();
 
     let forage_cfg_dir = env::var("FORAGE_CFG_DIR")
-        .map(|v| PathBuf::from(v))
-        .unwrap_or(base_dirs.config_dir().join("forage"));
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| base_dirs.config_dir().join("forage"));
 
     let forage_cfg_file = forage_cfg_dir.join("cfg.toml");
 
@@ -86,10 +86,12 @@ pub async fn get_cfg() -> Result<SysCfg> {
                 })
                 .collect()
         })
-        .unwrap_or(vec![Volume {
-            path: PathBuf::from("/tmp/forage_data"),
-            allocated: 1,
-        }]);
+        .unwrap_or_else(|| {
+            vec![Volume {
+                path: PathBuf::from("/tmp/forage_data"),
+                allocated: 1,
+            }]
+        });
 
     for vol in volumes.iter() {
         create_dir_all(&vol.path).await?;
@@ -97,8 +99,8 @@ pub async fn get_cfg() -> Result<SysCfg> {
 
     let forage_data_dir = sys_cfg
         .forage_data_dir
-        .map(|s| PathBuf::from(s))
-        .unwrap_or(ENV_CFG.usr_home_dir.join("Forage Data"));
+        .map(PathBuf::from)
+        .unwrap_or_else(|| ENV_CFG.usr_home_dir.join("Forage Data"));
 
     create_dir_all(&forage_data_dir).await?;
 
