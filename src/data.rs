@@ -109,10 +109,7 @@ pub async fn add_file(file: FileInfo) -> Result<()> {
     let size: u64 = file.size;
     let cwd: String = file.cwd.to_str().unwrap().to_owned();
     let absolute_path: String = file.absolute_path.to_str().unwrap().to_owned();
-    let parent_rev: Option<String> = match file.parent_rev {
-        Some(rev) => Some(rev.to_hex().to_string()),
-        None => None,
-    };
+    let parent_rev: Option<String> = file.parent_rev.map(|rev| rev.to_hex().to_string());
     let mime_type: String = file.mime_type;
     let date_created: i64 = file.date_created.timestamp_millis();
     let date_modified: i64 = file.date_modified.timestamp_millis();
