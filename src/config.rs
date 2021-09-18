@@ -8,7 +8,7 @@ pub struct Config {
     pub config_dir: PathBuf,
 }
 
-pub static CONFIG: Lazy<Config> = Lazy::new(|| {
+pub static ENV_CONFIG: Lazy<Config> = Lazy::new(|| {
     let user_dirs = UserDirs::new().unwrap();
     let base_dirs = BaseDirs::new().unwrap();
 

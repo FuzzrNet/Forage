@@ -1,6 +1,6 @@
 mod cli;
 mod config;
-mod data;
+mod db;
 mod file;
 mod hash;
 mod net;

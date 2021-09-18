@@ -5,7 +5,7 @@ use log::{info, warn};
 use structopt::StructOpt;
 use tokio::signal;
 
-use crate::data::add_path;
+use crate::file::process_path;
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
@@ -113,7 +113,7 @@ pub async fn try_main() -> Result<()> {
         Commands::CloseChannel { address, force } => unimplemented!(),
         Commands::Store { path } => {
             info!("Storing a file at path {}...", path.to_str().unwrap());
-            add_path(&path, current_dir()?).await?;
+            process_path(&path, current_dir()?).await?;
             Ok(())
         }
         Commands::ListFiles { prefix, depth } => unimplemented!(),

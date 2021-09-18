@@ -13,9 +13,8 @@ use bao::{
 };
 use log::{debug, error};
 use rand::Rng;
-use sled::IVec;
 
-pub struct EncodedFile {
+pub struct EncodedFileInfo {
     pub bao_hash: bao::Hash,
     pub read: u64,
     pub written: u64,
@@ -24,15 +23,14 @@ pub struct EncodedFile {
 
 /// Encode a file by its path using bao encoding.
 /// Returns bao hash, bytes read, bytes written, and the offset from which the bytes were written.
-pub fn encode(path: &Path) -> Result<EncodedFile> {
+pub fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
     let mut file = File::open(path)?;
 
     let mut encoded_file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .truncate(true)
-        .open("/tmp/forage_test")?; // Goes to /tmp because this will eventually changed into a network call
+        .open(format!("/tmp/forage/{}", hash_hex))?; // Goes to /tmp because this will eventually changed into a network call
 
     encoded_file.seek(SeekFrom::End(0))?;
     let offset = encoded_file.stream_position()?;
@@ -42,7 +40,7 @@ pub fn encode(path: &Path) -> Result<EncodedFile> {
     let bao_hash = encoder.finalize()?;
     let written = encoded_file.metadata()?.size() - offset;
 
-    Ok(EncodedFile {
+    Ok(EncodedFileInfo {
         bao_hash,
         read,
         written,
@@ -117,15 +115,11 @@ pub fn parse_blake3_hash(hash_hex: &str) -> Result<blake3::Hash> {
     Ok(hash_array.into())
 }
 
-pub fn ivec_to_blake3_hash(hash_bytes: IVec) -> Result<blake3::Hash> {
-    let hash_array: [u8; blake3::OUT_LEN] = hash_bytes[..].try_into()?;
-    Ok(hash_array.into())
-}
-
 // TODO: Make this use file streaming w/ hash digest
-pub fn hash_file(path: &Path) -> Result<blake3::Hash> {
+pub fn hash_file(path: &Path, salt: &mut Vec<u8>) -> Result<blake3::Hash> {
     let mut contents = vec![];
     File::open(path)?.read_to_end(&mut contents)?;
+    contents.append(salt);
     let file_hash = blake3::hash(&contents);
     debug!("path: {}, size: {}", path.to_str().unwrap(), contents.len(),);
     Ok(file_hash)
@@ -165,18 +159,23 @@ mod tests {
     use super::*;
 
     const FORAGE_HASH: &str = "621aa075e15290f8730e9a1a09e5aa07a7ba5fd7ab3e0980258538ff751a8010";
+    const SALT: &str = "59cec9faf1ded7d195150aadc6d8d811";
 
     #[test]
     fn integration() -> Result<()> {
-        let orig_path = Path::new("forage.jpg");
-        assert_eq!(hash_file(orig_path)?.to_hex().as_str(), FORAGE_HASH);
+        let mut salt1 = hex::decode(SALT)?;
+        let mut salt2 = hex::decode(SALT)?;
 
-        let EncodedFile {
+        let orig_path = Path::new("forage.jpg");
+        let hash = hash_file(orig_path, &mut salt1)?.to_hex();
+        assert_eq!(hash.as_str(), FORAGE_HASH);
+
+        let EncodedFileInfo {
             bao_hash,
             read,
             written,
             offset,
-        } = encode(orig_path)?;
+        } = encode(orig_path, hash.as_str())?;
 
         assert_eq!(read, 81155);
         assert_eq!(written, 86219);
@@ -187,7 +186,10 @@ mod tests {
 
         let out_path = Path::new("/tmp/forage.jpg");
         extract(out_path, &bao_hash, 0)?;
-        assert_eq!(hash_file(out_path)?.to_hex().as_str(), FORAGE_HASH);
+        assert_eq!(
+            hash_file(out_path, &mut salt2)?.to_hex().as_str(),
+            FORAGE_HASH
+        );
 
         Ok(())
     }
