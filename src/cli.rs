@@ -45,11 +45,19 @@ enum Commands {
         #[structopt(long, short)]
         force: bool,
     },
-    /// Store a file or directory
-    Store {
-        /// File or directory to store over the storage channel
-        #[structopt(parse(from_os_str))]
-        path: PathBuf,
+    /// Stores files in the Forage Data folder, and removes them
+    Entrust {
+        /// Restrict pruning to just paths with this prefix (relative to the Forage Data folder)
+        #[structopt(default_value = "")]
+        prefix: String,
+    },
+    /// Issues a challenge to verify if a provider is still hosting data for this storage channel.
+    Verify,
+    /// Retrieve a file by hash over available storage channels
+    Retrieve {
+        /// Path prefix. Multiple path matches will be saved to separate files and folders.
+        #[structopt(default_value = "")]
+        prefix: String,
     },
     /// List files stored over storage channel
     #[structopt(skip)]
@@ -60,19 +68,6 @@ enum Commands {
         /// Recursive directory listing depth (if 0, list all files under the prefix recursively)
         #[structopt(default_value = "1")]
         depth: usize,
-    },
-    /// Retrieve a file by hash over available storage channels
-    Retrieve {
-        /// Path prefix. Multiple path matches will be saved to separate files and folders.
-        prefix: String,
-        /// Where to save the retrieved data
-        #[structopt(parse(from_os_str))]
-        out: PathBuf,
-    },
-    /// Issues a challenge to check if a provider is still hosting data for this storage channel.
-    Check {
-        /// Tor Onion v3 address to authorized storage node.
-        address: String,
     },
     /// Allocate storage as an available storage provider.
     #[structopt(skip)]
@@ -111,25 +106,28 @@ pub async fn try_main() -> Result<()> {
         }
         Commands::ListChannels { providers, clients } => unimplemented!(),
         Commands::CloseChannel { address, force } => unimplemented!(),
-        Commands::Store { path } => {
-            info!("Storing a file at path {}...", path.to_str().unwrap());
-            process_path(&path, current_dir()?).await?;
+        Commands::Entrust { prefix } => {
+            info!(
+                "Storing data under {} over available storage channels...",
+                prefix
+            );
+            process_path(prefix, current_dir()?).await?;
             Ok(())
         }
-        Commands::ListFiles { prefix, depth } => unimplemented!(),
-        Commands::Retrieve { prefix, out } => {
-            info!("Retrieving files starting with {} over available storage channels and placing at {}...", prefix, out.to_str().unwrap());
+        Commands::Verify => {
+            info!("Verify data possession on existing storage channels...",);
             warn!("Not yet implemented");
             todo!();
         }
-        Commands::Check { address } => {
+        Commands::Retrieve { prefix } => {
             info!(
-                "Check that all files are being stored on an existing storage channel at {}...",
-                address
+                "Retrieving files under {} over available storage channels...",
+                prefix
             );
             warn!("Not yet implemented");
             todo!();
         }
+        Commands::ListFiles { prefix, depth } => unimplemented!(),
         Commands::Allocate { path, size } => unimplemented!(),
         Commands::Transfer { address } => unimplemented!(),
         Commands::Start => {

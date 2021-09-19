@@ -10,6 +10,7 @@ use log::info;
 use walkdir::WalkDir;
 
 use crate::{
+    config::get_data_dir,
     db::{insert_file, upsert_parent_rev, FileInfo, USR_CONFIG},
     hash::{encode, hash_file, infer_mime_type, EncodedFileInfo},
 };
@@ -27,7 +28,7 @@ impl Offset {
     }
 }
 
-pub fn walk_dir(path: &Path) -> Vec<PathBuf> {
+pub fn walk_dir(path: &PathBuf, prefix: String) -> Vec<PathBuf> {
     let start = Instant::now();
     let mut paths = vec![];
 
@@ -43,9 +44,9 @@ pub fn walk_dir(path: &Path) -> Vec<PathBuf> {
 }
 
 /// Adds all files under a path.
-pub async fn process_path(path: &Path, cwd: PathBuf) -> Result<()> {
+pub async fn process_path(prefix: String, cwd: PathBuf) -> Result<()> {
     let start = Instant::now();
-    let files = walk_dir(path);
+    let files = walk_dir(&get_data_dir().await?, prefix);
     let files_len = files.len();
     let mut bytes = 0;
 

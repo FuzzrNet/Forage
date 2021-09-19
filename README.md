@@ -40,8 +40,8 @@
     - [x] Schema
     - [x] Insert
     - [ ] Query
-- [x] Append new files to central log file
-- [ ] Extraction from appended log
+- [x] Encode files in the `Forage Data` folder, and store them in a configured storage volume
+- [ ] Decode files stored in a configured storage volume, and restore them to the `Forage Data` folder
 
 ### 0.0.3 - Tor
 
@@ -88,7 +88,7 @@ Focus: UX
 - [x] Multiple files can be stored
 - [x] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
 - [ ] Files are compressed using zstd dictionary compression
-- [ ] Individual files can be retrieved from storage client's log on storage provider
+- [ ] Individual files can be retrieved from storage provider
 
 ### 0.2.1
 

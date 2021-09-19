@@ -74,7 +74,6 @@ static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
             date_created        DATETIME NOT NULL
             client              BOOLEAN NOT NULL
             provider            BOOLEAN NOT NULL
-            market              BOOLEAN NOT NULL
         );
         COMMIT;
     ",
