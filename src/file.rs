@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     config::get_data_dir,
-    db::{insert_file, upsert_path, FileInfo, USR_CONFIG},
+    db::{contains_hash, flush_kv, insert_file, insert_hash, upsert_path, FileInfo, USR_CONFIG},
     hash::{encode, hash_file, infer_mime_type, EncodedFileInfo},
 };
 
@@ -51,7 +51,7 @@ pub fn walk_dir(path: &PathBuf, prefix: String) -> Result<Vec<PathBuf>> {
 }
 
 /// Uploads all files under a path to storage channels.
-pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
+pub async fn upload_path(prefix: String) -> Result<()> {
     let start = Instant::now();
     let files = walk_dir(&get_data_dir().await?, prefix)?;
     let files_len = files.len();
@@ -59,6 +59,13 @@ pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
 
     for file in files {
         let blake3_hash = hash_file(&file, &mut USR_CONFIG.file_salt.to_owned())?;
+        let blake3_bytes = blake3_hash.as_bytes();
+
+        if contains_hash(blake3_bytes)? {
+            continue;
+        } else {
+            insert_hash(blake3_bytes)?;
+        }
 
         let EncodedFileInfo {
             bao_hash,
@@ -66,7 +73,7 @@ pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
             written,
         } = encode(&file, &blake3_hash.to_hex().to_string()).await?;
 
-        let parent_rev = upsert_path(file.to_str().unwrap(), blake3_hash.as_bytes())?;
+        let parent_rev = upsert_path(file.to_str().unwrap(), blake3_bytes)?;
         let mime_type = infer_mime_type(&file)?;
         let metadata = File::open(&file)?.metadata()?;
 
@@ -87,8 +94,10 @@ pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
         bytes += written;
     }
 
+    flush_kv()?;
+
     info!(
-        "{} files with added in {:.2?}. {} written.",
+        "{} files with processed in {:.2?}. An additional {} written.",
         files_len,
         start.elapsed(),
         human_bytes(bytes as f64),

@@ -24,6 +24,7 @@ const USR_CONFIG_TREE: &str = "usr_cfg:";
 const USR_CONFIG_FILE_SALT: &str = "file_salt";
 
 const PATHS_TREE: &str = "paths:";
+const HASH_TREE: &str = "hash:";
 
 static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
     Arc::new(
@@ -195,6 +196,22 @@ pub fn upsert_path(file_path: &str, hash_bytes: &[u8]) -> Result<Option<blake3::
         .open_tree(PATHS_TREE)?
         .insert(file_path, hash_bytes)?
         .map(|v| ivec_to_blake3_hash(v).unwrap()))
+}
+
+pub fn insert_hash(hash_bytes: &[u8]) -> Result<()> {
+    DB_KV
+        .open_tree(HASH_TREE)?
+        .insert(hash_bytes, IVec::default())?;
+    Ok(())
+}
+
+pub fn contains_hash(hash_bytes: &[u8]) -> Result<bool> {
+    Ok(DB_KV.open_tree(HASH_TREE)?.contains_key(hash_bytes)?)
+}
+
+pub fn flush_kv() -> Result<()> {
+    DB_KV.flush()?;
+    Ok(())
 }
 
 pub async fn get_files() -> Result<Vec<FileInfo>> {

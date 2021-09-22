@@ -36,12 +36,13 @@
 ### 0.0.2 - Persistence
 
 - [x] Sled for path lookup
-- [ ] `file` SQL
+- [x] `file` SQL
     - [x] Schema
     - [x] Insert
-    - [ ] Query
+    - [x] Query
 - [x] Encode files in the `Forage Data` folder, and store them in a configured storage volume
 - [ ] Decode files stored in a configured storage volume, and restore them to the `Forage Data` folder
+- [x] Display encoded file list
 
 ### 0.0.3 - Tor
 

@@ -1,4 +1,4 @@
-use std::{env::current_dir, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use log::{info, warn};
@@ -107,7 +107,7 @@ pub async fn try_main() -> Result<()> {
         Commands::CloseChannel { address, force } => unimplemented!(),
         Commands::Upload { prefix } => {
             info!("Storing data in Forest Data directory over available storage channels...");
-            upload_path(prefix, current_dir()?).await?;
+            upload_path(prefix).await?;
             Ok(())
         }
         Commands::Verify => {
