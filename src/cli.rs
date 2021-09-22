@@ -5,7 +5,7 @@ use log::{info, warn};
 use structopt::StructOpt;
 use tokio::signal;
 
-use crate::file::upload_path;
+use crate::{db::list_files, file::upload_path};
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
@@ -60,7 +60,6 @@ enum Commands {
         prefix: String,
     },
     /// List files stored over storage channel
-    #[structopt(skip)]
     ListFiles {
         /// Filter paths by prefix
         #[structopt(default_value = "/")]
@@ -107,10 +106,7 @@ pub async fn try_main() -> Result<()> {
         Commands::ListChannels { providers, clients } => unimplemented!(),
         Commands::CloseChannel { address, force } => unimplemented!(),
         Commands::Upload { prefix } => {
-            info!(
-                "Storing data under {} over available storage channels...",
-                prefix
-            );
+            info!("Storing data in Forest Data directory over available storage channels...");
             upload_path(prefix, current_dir()?).await?;
             Ok(())
         }
@@ -127,7 +123,11 @@ pub async fn try_main() -> Result<()> {
             warn!("Not yet implemented");
             todo!();
         }
-        Commands::ListFiles { prefix, depth } => unimplemented!(),
+        Commands::ListFiles { prefix, depth } => {
+            let files = list_files().await?;
+            info!("{} files stored:\n{}", files.len(), files.join("\n"));
+            Ok(())
+        }
         Commands::Allocate { path, size } => unimplemented!(),
         Commands::Transfer { address } => unimplemented!(),
         Commands::Start => {

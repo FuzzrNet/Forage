@@ -69,12 +69,11 @@ pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
         let mime_type = infer_mime_type(&file)?;
         let metadata = File::open(&file)?.metadata()?;
 
-        let file = FileInfo {
+        let file_info = FileInfo {
             blake3_hash,
             bao_hash,
             size,
-            cwd: cwd.to_owned(),
-            absolute_path: file,
+            path: file,
             parent_rev,
             mime_type,
             date_created: DateTime::from(metadata.created()?),
@@ -82,7 +81,7 @@ pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
             date_accessed: DateTime::from(metadata.accessed()?),
         };
 
-        insert_file(file).await?;
+        insert_file(file_info).await?;
 
         bytes += written;
     }

@@ -1,7 +1,8 @@
-use std::{convert::TryInto, path::PathBuf, sync::Arc};
+use std::{cmp, convert::TryInto, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
+use human_bytes::human_bytes;
 use log::error;
 use once_cell::sync::Lazy;
 use rand::RngCore;
@@ -9,7 +10,10 @@ use rusqlite::{named_params, Connection};
 use sled::{Config, Db, IVec, Mode};
 use tokio::sync::Mutex;
 
-use crate::config::ENV_CFG;
+use crate::{
+    config::ENV_CFG,
+    hash::{parse_bao_hash, parse_blake3_hash},
+};
 
 /// # Databases
 
@@ -58,8 +62,7 @@ static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
                     blake3_hash         CHARACTER(64) PRIMARY KEY,
                     bao_hash            CHARACTER(64) NOT NULL,
                     size                BIGINT NOT NULL,
-                    cwd                 TEXT NOT NULL,
-                    absolute_path       TEXT NOT NULL,
+                    path                TEXT NOT NULL,
                     parent_rev          CHARACTER(64),
                     mime_type           VARCHAR(255) NOT NULL,
                     date_created        DATETIME NOT NULL,
@@ -121,8 +124,7 @@ pub struct FileInfo {
     pub blake3_hash: blake3::Hash, // Primary key
     pub bao_hash: bao::Hash,
     pub size: u64, // bytes on disk
-    pub cwd: PathBuf,
-    pub absolute_path: PathBuf,
+    pub path: PathBuf,
     pub parent_rev: Option<blake3::Hash>,
     pub mime_type: String,
     pub date_created: DateTime<Utc>,
@@ -135,8 +137,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
     let blake3_hash: String = file.blake3_hash.to_hex().to_string();
     let bao_hash: String = file.bao_hash.to_hex().to_string();
     let size: u64 = file.size;
-    let cwd: String = file.cwd.to_str().unwrap().to_owned();
-    let absolute_path: String = file.absolute_path.to_str().unwrap().to_owned();
+    let path: String = file.path.to_str().unwrap().to_owned();
     let parent_rev: Option<String> = file.parent_rev.map(|rev| rev.to_hex().to_string());
     let mime_type: String = file.mime_type;
     let date_created: i64 = file.date_created.timestamp_millis();
@@ -150,8 +151,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
         blake3_hash,
         bao_hash,
         size,
-        cwd,
-        absolute_path,
+        path,
         parent_rev,
         mime_type,
         date_created,
@@ -161,8 +161,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
         :blake3_hash,
         :bao_hash,
         :size,
-        :cwd,
-        :absolute_path,
+        :path,
         :parent_rev,
         :mime_type,
         :date_created,
@@ -175,8 +174,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
         ":blake3_hash": blake3_hash,
         ":bao_hash": bao_hash,
         ":size": size,
-        ":cwd": cwd,
-        ":absolute_path": absolute_path,
+        ":path": path,
         ":parent_rev": parent_rev,
         ":mime_type": mime_type,
         ":date_created": date_created,
@@ -197,4 +195,67 @@ pub fn upsert_path(file_path: &str, hash_bytes: &[u8]) -> Result<Option<blake3::
         .open_tree(PATHS_TREE)?
         .insert(file_path, hash_bytes)?
         .map(|v| ivec_to_blake3_hash(v).unwrap()))
+}
+
+pub async fn get_files() -> Result<Vec<FileInfo>> {
+    let conn = DB_SQL.lock().await;
+    let mut stmt = conn.prepare_cached("SELECT * FROM files")?;
+
+    let results = stmt.query_map([], |row| {
+        let blake3_hash: String = row.get(0)?;
+        let bao_hash: String = row.get(1)?;
+        let size = row.get(2)?;
+        let path: String = row.get(3)?;
+        let parent_rev: Option<String> = row.get(4)?;
+        let mime_type = row.get(5)?;
+        let date_created: i64 = row.get(6)?;
+        let date_modified: i64 = row.get(7)?;
+        let date_accessed: i64 = row.get(8)?;
+
+        let blake3_hash = parse_blake3_hash(&blake3_hash).unwrap();
+        let bao_hash = parse_bao_hash(&bao_hash).unwrap();
+        let path = PathBuf::from_str(&path).unwrap();
+        let parent_rev = parent_rev.map(|pr| parse_blake3_hash(&pr).unwrap());
+        let date_created = DateTime::from_utc(NaiveDateTime::from_timestamp(date_created, 0), Utc);
+        let date_modified =
+            DateTime::from_utc(NaiveDateTime::from_timestamp(date_modified, 0), Utc);
+        let date_accessed =
+            DateTime::from_utc(NaiveDateTime::from_timestamp(date_accessed, 0), Utc);
+
+        Ok(FileInfo {
+            blake3_hash,
+            bao_hash,
+            size,
+            path,
+            parent_rev,
+            mime_type,
+            date_created,
+            date_modified,
+            date_accessed,
+        })
+    })?;
+
+    Ok(results.map(|res_fi| res_fi.unwrap()).collect())
+}
+
+pub async fn list_files() -> Result<Vec<String>> {
+    let max_path_len = get_files().await?.iter().fold(0, |acc, info| {
+        cmp::max(acc, info.path.to_string_lossy().len())
+    });
+
+    Ok(get_files()
+        .await?
+        .iter()
+        .map(|info| {
+            let path = info.path.to_string_lossy();
+
+            format!(
+                "{path}{path_space}\t\t{size}\t\t{mime_type}",
+                path = path,
+                path_space = " ".repeat(max_path_len - path.len()),
+                size = human_bytes(info.size as f64),
+                mime_type = info.mime_type,
+            )
+        })
+        .collect())
 }

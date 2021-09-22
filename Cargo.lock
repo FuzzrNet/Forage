@@ -395,6 +395,7 @@ dependencies = [
  "chrono",
  "directories-next",
  "hex",
+ "human_bytes",
  "infer",
  "log",
  "once_cell",
@@ -512,6 +513,12 @@ dependencies = [
  "crypto-mac",
  "digest",
 ]
+
+[[package]]
+name = "human_bytes"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc178557b4a227ff4d9c51fbbf17f29607c32a96be106c97bb8499e075db0de2"
 
 [[package]]
 name = "humantime"
