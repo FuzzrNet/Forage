@@ -250,11 +250,11 @@ pub async fn list_files() -> Result<Vec<String>> {
             let path = info.path.to_string_lossy();
 
             format!(
-                "{path}{path_space}\t\t{size}\t\t{mime_type}",
-                path = path,
-                path_space = " ".repeat(max_path_len - path.len()),
+                "{size}\t\t{mime_type}\t{path}{path_space}",
                 size = human_bytes(info.size as f64),
                 mime_type = info.mime_type,
+                path = path,
+                path_space = " ".repeat(max_path_len - path.len()),
             )
         })
         .collect())

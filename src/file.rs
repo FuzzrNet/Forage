@@ -2,6 +2,7 @@ use std::{env::current_dir, fs::File, path::PathBuf, time::Instant};
 
 use anyhow::Result;
 use chrono::DateTime;
+use human_bytes::human_bytes;
 use log::info;
 use walkdir::WalkDir;
 
@@ -87,10 +88,10 @@ pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
     }
 
     info!(
-        "{} files with added in {:.2?}. {} bytes written.",
+        "{} files with added in {:.2?}. {} written.",
         files_len,
         start.elapsed(),
-        bytes
+        human_bytes(bytes as f64),
     );
 
     Ok(())

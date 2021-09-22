@@ -11,6 +11,7 @@ use bao::{
     decode::SliceDecoder,
     encode::{Encoder, SliceExtractor},
 };
+use human_bytes::human_bytes;
 use log::{debug, error};
 use rand::Rng;
 
@@ -97,7 +98,7 @@ pub async fn extract(out: &Path, bao_hash: &bao::Hash, blake3_hash: &str) -> Res
     let mut decoder = SliceDecoder::new(extractor, bao_hash, 0, encoded_len);
     let bytes_read = copy_reader_to_writer(&mut decoder, &mut extracted_file)?;
 
-    debug!("bytes written: {}", bytes_read);
+    debug!("bytes written: {}", human_bytes(bytes_read as f64));
 
     Ok(bytes_read)
 }
