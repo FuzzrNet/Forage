@@ -49,13 +49,13 @@ struct SysCfgFile {
 }
 
 pub struct Volume {
-    path: PathBuf,
-    allocated: u64,
+    pub path: PathBuf,
+    pub allocated: u64,
 }
 
 pub struct SysCfg {
-    forage_data_dir: PathBuf,
-    volumes: Vec<Volume>,
+    pub forage_data_dir: PathBuf,
+    pub volumes: Vec<Volume>,
 }
 
 pub async fn get_cfg() -> Result<SysCfg> {

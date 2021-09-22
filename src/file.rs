@@ -7,7 +7,6 @@ use log::info;
 use walkdir::WalkDir;
 
 use crate::{
-    config::get_data_dir,
     db::{contains_hash, flush_kv, insert_file, insert_hash, upsert_path, FileInfo, USR_CONFIG},
     hash::{encode, hash_file, infer_mime_type, EncodedFileInfo},
 };
@@ -51,9 +50,9 @@ pub fn walk_dir(path: &PathBuf, prefix: String) -> Result<Vec<PathBuf>> {
 }
 
 /// Uploads all files under a path to storage channels.
-pub async fn upload_path(prefix: String) -> Result<()> {
+pub async fn upload_path(prefix: String, data_dir: PathBuf) -> Result<()> {
     let start = Instant::now();
-    let files = walk_dir(&get_data_dir().await?, prefix)?;
+    let files = walk_dir(&data_dir, prefix)?;
     let files_len = files.len();
     let mut bytes_read = 0;
     let mut bytes_written = 0;
@@ -78,11 +77,14 @@ pub async fn upload_path(prefix: String) -> Result<()> {
         let mime_type = infer_mime_type(&file)?;
         let metadata = File::open(&file)?.metadata()?;
 
+        // Relative path to Forest Data dir
+        let path = file.strip_prefix(&data_dir)?.to_path_buf();
+
         let file_info = FileInfo {
             blake3_hash,
             bao_hash,
             size,
-            path: file,
+            path,
             parent_rev,
             mime_type,
             date_created: DateTime::from(metadata.created()?),

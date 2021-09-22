@@ -5,7 +5,7 @@ use log::{info, warn};
 use structopt::StructOpt;
 use tokio::signal;
 
-use crate::{db::list_files, file::upload_path};
+use crate::{config::get_data_dir, db::list_files, file::upload_path};
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
@@ -107,7 +107,8 @@ pub async fn try_main() -> Result<()> {
         Commands::CloseChannel { address, force } => unimplemented!(),
         Commands::Upload { prefix } => {
             info!("Storing data in Forest Data directory over available storage channels...");
-            upload_path(prefix).await?;
+            let data_dir = get_data_dir().await?;
+            upload_path(prefix, data_dir).await?;
             Ok(())
         }
         Commands::Verify => {
@@ -124,8 +125,14 @@ pub async fn try_main() -> Result<()> {
             todo!();
         }
         Commands::ListFiles { prefix, depth } => {
+            let data_dir = get_data_dir().await?;
             let files = list_files().await?;
-            info!("{} files stored:\n{}", files.len(), files.join("\n"));
+            info!(
+                "{} files stored in {}:\n{}",
+                files.len(),
+                data_dir.file_name().unwrap().to_string_lossy(),
+                files.join("\n")
+            );
             Ok(())
         }
         Commands::Allocate { path, size } => unimplemented!(),

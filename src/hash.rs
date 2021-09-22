@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Result;
 use bao::{
-    decode::SliceDecoder,
+    decode::{Decoder, SliceDecoder},
     encode::{Encoder, SliceExtractor},
 };
 use human_bytes::human_bytes;
@@ -92,10 +92,7 @@ pub async fn extract(out: &Path, bao_hash: &bao::Hash, blake3_hash: &str) -> Res
         .truncate(true) // Warning! Will overwrite data TODO: Add a check
         .open(out)?;
 
-    let encoded_len = encoded_file.metadata()?.len();
-
-    let extractor = SliceExtractor::new(encoded_file, 0, encoded_len);
-    let mut decoder = SliceDecoder::new(extractor, bao_hash, 0, encoded_len);
+    let mut decoder = Decoder::new(encoded_file, bao_hash);
     let bytes_read = copy_reader_to_writer(&mut decoder, &mut extracted_file)?;
 
     debug!("bytes written: {}", human_bytes(bytes_read as f64));
