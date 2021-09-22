@@ -43,8 +43,8 @@ pub fn walk_dir(path: &PathBuf, prefix: String) -> Vec<PathBuf> {
     paths
 }
 
-/// Adds all files under a path.
-pub async fn process_path(prefix: String, cwd: PathBuf) -> Result<()> {
+/// Uploads all files under a path to storage channels.
+pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
     let start = Instant::now();
     let files = walk_dir(&get_data_dir().await?, prefix);
     let files_len = files.len();
@@ -57,7 +57,6 @@ pub async fn process_path(prefix: String, cwd: PathBuf) -> Result<()> {
             bao_hash,
             read: size,
             written,
-            offset,
         } = encode(&file, &blake3_hash.to_hex().to_string()).await?;
 
         let parent_rev = upsert_parent_rev(file.to_str().unwrap(), blake3_hash.as_bytes())?;
@@ -67,7 +66,6 @@ pub async fn process_path(prefix: String, cwd: PathBuf) -> Result<()> {
         let file = FileInfo {
             blake3_hash,
             bao_hash,
-            offset: Offset::new(offset),
             size,
             cwd: cwd.to_owned(),
             absolute_path: file,

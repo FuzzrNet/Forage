@@ -5,7 +5,7 @@ use log::{info, warn};
 use structopt::StructOpt;
 use tokio::signal;
 
-use crate::file::process_path;
+use crate::file::upload_path;
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
@@ -46,7 +46,7 @@ enum Commands {
         force: bool,
     },
     /// Stores files in the Forage Data folder, and removes them
-    Entrust {
+    Upload {
         /// Restrict pruning to just paths with this prefix (relative to the Forage Data folder)
         #[structopt(default_value = "")]
         prefix: String,
@@ -54,7 +54,7 @@ enum Commands {
     /// Issues a challenge to verify if a provider is still hosting data for this storage channel.
     Verify,
     /// Retrieve a file by hash over available storage channels
-    Retrieve {
+    Download {
         /// Path prefix. Multiple path matches will be saved to separate files and folders.
         #[structopt(default_value = "")]
         prefix: String,
@@ -106,12 +106,12 @@ pub async fn try_main() -> Result<()> {
         }
         Commands::ListChannels { providers, clients } => unimplemented!(),
         Commands::CloseChannel { address, force } => unimplemented!(),
-        Commands::Entrust { prefix } => {
+        Commands::Upload { prefix } => {
             info!(
                 "Storing data under {} over available storage channels...",
                 prefix
             );
-            process_path(prefix, current_dir()?).await?;
+            upload_path(prefix, current_dir()?).await?;
             Ok(())
         }
         Commands::Verify => {
@@ -119,7 +119,7 @@ pub async fn try_main() -> Result<()> {
             warn!("Not yet implemented");
             todo!();
         }
-        Commands::Retrieve { prefix } => {
+        Commands::Download { prefix } => {
             info!(
                 "Retrieving files under {} over available storage channels...",
                 prefix

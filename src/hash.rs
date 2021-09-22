@@ -20,7 +20,6 @@ pub struct EncodedFileInfo {
     pub bao_hash: bao::Hash,
     pub read: u64,
     pub written: u64,
-    pub offset: u64,
 }
 
 /// Encode a file by its path using bao encoding.
@@ -29,26 +28,23 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
     let mut file = File::open(path)?;
 
     // Eventually this will need to be moved into a different function and replaced with a network call
-    let mut encoded_file = OpenOptions::new()
+    let encoded_file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(true)
         .open(get_storage_path().await?.join(hash_hex))?;
 
-    encoded_file.seek(SeekFrom::End(0))?;
-    let offset = encoded_file.stream_position()?;
     let mut encoder = Encoder::new(&encoded_file);
 
     let read = copy_reader_to_writer(&mut file, &mut encoder)? as u64;
     let bao_hash = encoder.finalize()?;
-    let written = encoded_file.metadata()?.size() - offset;
+    let written = encoded_file.metadata()?.size();
 
     Ok(EncodedFileInfo {
         bao_hash,
         read,
         written,
-        offset,
     })
 }
 
@@ -178,12 +174,10 @@ mod tests {
             bao_hash,
             read,
             written,
-            offset,
         } = encode(orig_path, &blake3_hash).await?;
 
         assert_eq!(read, 81155);
         assert_eq!(written, 86219);
-        assert_eq!(offset, 0);
         assert_eq!(bao_hash.to_hex().as_str(), BAO_HASH);
 
         verify(&bao_hash, &blake3_hash).await?;

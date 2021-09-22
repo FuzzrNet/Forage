@@ -121,8 +121,7 @@ pub static USR_CONFIG: Lazy<UsrCfg> = Lazy::new(|| init_usr_cfg().unwrap());
 pub struct FileInfo {
     pub blake3_hash: blake3::Hash, // Primary key
     pub bao_hash: bao::Hash,
-    pub offset: Offset, // Forage account data offset format
-    pub size: u64,      // bytes on disk
+    pub size: u64, // bytes on disk
     pub cwd: PathBuf,
     pub absolute_path: PathBuf,
     pub parent_rev: Option<blake3::Hash>,
@@ -136,7 +135,6 @@ pub struct FileInfo {
 pub async fn insert_file(file: FileInfo) -> Result<()> {
     let blake3_hash: String = file.blake3_hash.to_hex().to_string();
     let bao_hash: String = file.bao_hash.to_hex().to_string();
-    let offset: u64 = file.offset.get();
     let size: u64 = file.size;
     let cwd: String = file.cwd.to_str().unwrap().to_owned();
     let absolute_path: String = file.absolute_path.to_str().unwrap().to_owned();
@@ -152,7 +150,6 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
         "INSERT INTO files (
         blake3_hash,
         bao_hash,
-        offset,
         size,
         cwd,
         absolute_path,
@@ -164,7 +161,6 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
     ) VALUES (
         :blake3_hash,
         :bao_hash,
-        :offset,
         :size,
         :cwd,
         :absolute_path,
@@ -179,7 +175,6 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
     stmt.execute(named_params! {
         ":blake3_hash": blake3_hash,
         ":bao_hash": bao_hash,
-        ":offset": offset,
         ":size": size,
         ":cwd": cwd,
         ":absolute_path": absolute_path,
