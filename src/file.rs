@@ -55,7 +55,8 @@ pub async fn upload_path(prefix: String) -> Result<()> {
     let start = Instant::now();
     let files = walk_dir(&get_data_dir().await?, prefix)?;
     let files_len = files.len();
-    let mut bytes = 0;
+    let mut bytes_read = 0;
+    let mut bytes_written = 0;
 
     for file in files {
         let blake3_hash = hash_file(&file, &mut USR_CONFIG.file_salt.to_owned())?;
@@ -91,17 +92,26 @@ pub async fn upload_path(prefix: String) -> Result<()> {
 
         insert_file(file_info).await?;
 
-        bytes += written;
+        bytes_read += size;
+        bytes_written += written;
     }
 
     flush_kv()?;
 
     info!(
-        "{} files with processed in {:.2?}. An additional {} written.",
+        "{} bytes read. {} files processed in {:.2?}. {} bytes written.",
+        human_bytes(bytes_read as f64),
         files_len,
         start.elapsed(),
-        human_bytes(bytes as f64),
+        human_bytes(bytes_written as f64),
     );
+
+    if bytes_read > 0 {
+        info!(
+            "Write amplification was {:.2}%.",
+            ((bytes_written as f64 / bytes_read as f64) - 1.0) * 100.0
+        );
+    }
 
     Ok(())
 }
