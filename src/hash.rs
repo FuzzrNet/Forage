@@ -1,7 +1,7 @@
 use std::{
     convert::TryInto,
     fs::{File, OpenOptions},
-    io::{ErrorKind, Read, Seek, SeekFrom, Write},
+    io::{ErrorKind, Read, Write},
     os::unix::prelude::MetadataExt,
     path::Path,
 };

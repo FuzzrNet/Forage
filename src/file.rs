@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{env::current_dir, fs::File, path::PathBuf, time::Instant};
 
 use anyhow::Result;
 use chrono::DateTime;
@@ -28,25 +24,35 @@ impl Offset {
     }
 }
 
-pub fn walk_dir(path: &PathBuf, prefix: String) -> Vec<PathBuf> {
+pub fn walk_dir(path: &PathBuf, prefix: String) -> Result<Vec<PathBuf>> {
     let start = Instant::now();
     let mut paths = vec![];
+    let cwd = current_dir()?.to_string_lossy().to_string();
 
     for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
         if entry.file_type().is_file() {
-            paths.push(entry.into_path());
+            let entry_path = entry.into_path();
+
+            if entry_path
+                .to_string_lossy()
+                .to_string()
+                .replace(&cwd, "")
+                .starts_with(&prefix)
+            {
+                paths.push(entry_path);
+            }
         }
     }
 
     info!("{} files found in {:.2?}", paths.len(), start.elapsed());
 
-    paths
+    Ok(paths)
 }
 
 /// Uploads all files under a path to storage channels.
 pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
     let start = Instant::now();
-    let files = walk_dir(&get_data_dir().await?, prefix);
+    let files = walk_dir(&get_data_dir().await?, prefix)?;
     let files_len = files.len();
     let mut bytes = 0;
 

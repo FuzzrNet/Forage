@@ -9,7 +9,7 @@ use rusqlite::{named_params, Connection};
 use sled::{Config, Db, IVec, Mode};
 use tokio::sync::Mutex;
 
-use crate::{config::ENV_CFG, file::Offset};
+use crate::config::ENV_CFG;
 
 /// # Databases
 

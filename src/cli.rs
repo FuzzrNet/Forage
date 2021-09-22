@@ -45,7 +45,7 @@ enum Commands {
         #[structopt(long, short)]
         force: bool,
     },
-    /// Stores files in the Forage Data folder, and removes them
+    /// Uploads files in the Forage Data folder on available storage channels (de-duplicating and creating revisions as necessary)
     Upload {
         /// Restrict pruning to just paths with this prefix (relative to the Forage Data folder)
         #[structopt(default_value = "")]
@@ -53,7 +53,7 @@ enum Commands {
     },
     /// Issues a challenge to verify if a provider is still hosting data for this storage channel.
     Verify,
-    /// Retrieve a file by hash over available storage channels
+    /// Retrieve a file by its path prefix over available storage channels (leave empty to retrieve all files, de-duplicating as necessary)
     Download {
         /// Path prefix. Multiple path matches will be saved to separate files and folders.
         #[structopt(default_value = "")]
