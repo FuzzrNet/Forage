@@ -60,6 +60,7 @@ pub struct SysCfg {
 
 pub async fn get_cfg() -> Result<SysCfg> {
     create_dir_all(&ENV_CFG.forage_cfg_dir).await?;
+    create_dir_all(&ENV_CFG.forage_cfg_dir.join("sqlite_db")).await?;
 
     let mut cfg_contents = vec![];
 

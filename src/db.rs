@@ -43,7 +43,7 @@ static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
 
 /// ### Creates schemas, keeps a connection
 static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
-    let conn = Connection::open(ENV_CFG.forage_cfg_dir.join("sqlite").join("forage.db3"))
+    let conn = Connection::open(ENV_CFG.forage_cfg_dir.join("sqlite_db").join("forage.db3"))
         .unwrap_or_else(|e| {
             error!(
                 "Trouble opening SQLite database: {}. Using a temporary in-memory database.",
@@ -53,30 +53,29 @@ static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
         });
 
     conn.execute_batch(
-        "
-        BEGIN;
-        CREATE TABLE file (
-            blake3_hash         CHARACTER(64) PRIMARY KEY
-            bao_hash            CHARACTER(64) NOT NULL
-            offset              BIGINT NOT NULL
-            size                BIGINT NOT NULL
-            cwd                 TEXT NOT NULL
-            absolute_path       TEXT NOT NULL
-            parent_rev          CHARACTER(64)
-            mime_type           VARCHAR(255) NOT NULL
-            date_created        DATETIME NOT NULL
-            date_modified       DATETIME NOT NULL
-            date_accessed       DATETIME NOT NULL
-        );
-        CREATE TABLE peer (
-            tor_v3              TEXT NOT NULL
-            label               TEXT
-            date_created        DATETIME NOT NULL
-            client              BOOLEAN NOT NULL
-            provider            BOOLEAN NOT NULL
-        );
-        COMMIT;
-    ",
+        "   BEGIN;
+                CREATE TABLE IF NOT EXISTS files (
+                    blake3_hash         CHARACTER(64) PRIMARY KEY,
+                    bao_hash            CHARACTER(64) NOT NULL,
+                    size                BIGINT NOT NULL,
+                    cwd                 TEXT NOT NULL,
+                    absolute_path       TEXT NOT NULL,
+                    parent_rev          CHARACTER(64),
+                    mime_type           VARCHAR(255) NOT NULL,
+                    date_created        DATETIME NOT NULL,
+                    date_modified       DATETIME NOT NULL,
+                    date_accessed       DATETIME NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS peer (
+                    tor_v3              TEXT NOT NULL,
+                    label               TEXT,
+                    date_created        DATETIME NOT NULL,
+                    client              BOOLEAN NOT NULL,
+                    provider            BOOLEAN NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_file_blake3_hash ON files (blake3_hash);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_peer_tor_v3 ON peer (tor_v3);
+                COMMIT;",
     )
     .unwrap();
 
@@ -157,7 +156,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
         mime_type,
         date_created,
         date_modified,
-        date_accessed,
+        date_accessed
     ) VALUES (
         :blake3_hash,
         :bao_hash,
@@ -168,7 +167,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
         :mime_type,
         :date_created,
         :date_modified,
-        :date_accessed,
+        :date_accessed
     )",
     )?;
 
@@ -193,7 +192,7 @@ pub fn ivec_to_blake3_hash(hash_bytes: IVec) -> Result<blake3::Hash> {
     Ok(hash_array.into())
 }
 
-pub fn upsert_parent_rev(file_path: &str, hash_bytes: &[u8]) -> Result<Option<blake3::Hash>> {
+pub fn upsert_path(file_path: &str, hash_bytes: &[u8]) -> Result<Option<blake3::Hash>> {
     Ok(DB_KV
         .open_tree(PATHS_TREE)?
         .insert(file_path, hash_bytes)?

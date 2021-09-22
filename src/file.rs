@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 
 use crate::{
     config::get_data_dir,
-    db::{insert_file, upsert_parent_rev, FileInfo, USR_CONFIG},
+    db::{insert_file, upsert_path, FileInfo, USR_CONFIG},
     hash::{encode, hash_file, infer_mime_type, EncodedFileInfo},
 };
 
@@ -65,7 +65,7 @@ pub async fn upload_path(prefix: String, cwd: PathBuf) -> Result<()> {
             written,
         } = encode(&file, &blake3_hash.to_hex().to_string()).await?;
 
-        let parent_rev = upsert_parent_rev(file.to_str().unwrap(), blake3_hash.as_bytes())?;
+        let parent_rev = upsert_path(file.to_str().unwrap(), blake3_hash.as_bytes())?;
         let mime_type = infer_mime_type(&file)?;
         let metadata = File::open(&file)?.metadata()?;
 
