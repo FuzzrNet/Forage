@@ -42,6 +42,7 @@
     - [x] Query
 - [x] Encode files in the `Forage Data` folder, and store them in a configured storage volume
 - [ ] Decode files stored in a configured storage volume, and restore them to the `Forage Data` folder
+- [ ] Verify a random slice of a file (accounting for files of varying sizes)
 - [x] Display encoded file list
 
 ### 0.0.3 - Tor

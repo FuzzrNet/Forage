@@ -3,7 +3,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{ErrorKind, Read, Write},
     os::unix::prelude::MetadataExt,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use anyhow::Result;
@@ -39,6 +39,7 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
     let mut encoder = Encoder::new(&encoded_file);
 
     let read = copy_reader_to_writer(&mut file, &mut encoder)? as u64;
+    // TODO: generate filler bytes for remainder of 1024 byte slice
     let bao_hash = encoder.finalize()?;
     let written = encoded_file.metadata()?.size();
 
@@ -51,13 +52,13 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
 
 const SLICE_LEN: u64 = 1024;
 
-pub async fn verify(bao_hash: &bao::Hash, blake3_hash: &str) -> Result<()> {
+pub async fn verify(
+    bao_hash: &bao::Hash,
+    encoded_file_path: &PathBuf,
+    slice_index: u64,
+) -> Result<()> {
     // Client
-    // TODO: data::get_file
-    let encoded_file = File::open(get_storage_path().await?.join(blake3_hash))?;
-    let range = encoded_file.metadata()?.len() / SLICE_LEN;
-    let mut rng = rand::thread_rng();
-    let slice_start = rng.gen_range(0..range);
+    let encoded_file = File::open(encoded_file_path)?;
 
     // Provider
     let mut extractor = SliceExtractor::new(encoded_file, slice_start, SLICE_LEN);

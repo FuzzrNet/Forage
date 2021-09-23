@@ -5,7 +5,12 @@ use log::{info, warn};
 use structopt::StructOpt;
 use tokio::signal;
 
-use crate::{config::get_data_dir, db::list_files, file::upload_path};
+use crate::{
+    config::{get_data_dir, get_storage_path},
+    db::{get_random_slice_index, get_slice_count, list_files, SliceIndexInfo},
+    file::upload_path,
+    hash::{parse_bao_hash, verify},
+};
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
@@ -109,12 +114,26 @@ pub async fn try_main() -> Result<()> {
             info!("Storing data in Forest Data directory over available storage channels...");
             let data_dir = get_data_dir().await?;
             upload_path(prefix, data_dir).await?;
-            Ok(())
         }
         Commands::Verify => {
             info!("Verify data possession on existing storage channels...",);
-            warn!("Not yet implemented");
-            todo!();
+            let SliceIndexInfo {
+                blake3_hash,
+                bao_hash,
+                file_slice_index: slice_index,
+                data_dir_path,
+            } = get_random_slice_index().await?;
+
+            let bao_hash = parse_bao_hash(&bao_hash)?;
+            let encoded_path = get_storage_path().await?.join(blake3_hash);
+            let slice_count = get_slice_count().await?;
+
+            verify(&bao_hash, &encoded_path, slice_index).await?;
+
+            println!(
+                "File chosen: {}\tIndex: {}\t of {} slices",
+                data_dir_path, slice_index, slice_count
+            );
         }
         Commands::Download { prefix } => {
             info!(
@@ -133,14 +152,12 @@ pub async fn try_main() -> Result<()> {
                 data_dir.file_name().unwrap().to_string_lossy(),
                 files.join("\n")
             );
-            Ok(())
         }
         Commands::Allocate { path, size } => unimplemented!(),
         Commands::Transfer { address } => unimplemented!(),
         Commands::Start => {
             info!("Starting Forage node...");
             signal::ctrl_c().await?;
-            Ok(())
         }
         Commands::Status => {
             info!("Status from Forage node... Press CTRL-C to stop");
@@ -148,4 +165,6 @@ pub async fn try_main() -> Result<()> {
             todo!();
         }
     }
+
+    Ok(())
 }

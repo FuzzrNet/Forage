@@ -7,7 +7,10 @@ use log::info;
 use walkdir::WalkDir;
 
 use crate::{
-    db::{contains_hash, flush_kv, insert_file, insert_hash, upsert_path, FileInfo, USR_CONFIG},
+    db::{
+        contains_hash, flush_kv, get_max_slice_index, insert_file, insert_hash, mark_as_dropped,
+        remove_hash, upsert_path, FileInfo, USR_CONFIG,
+    },
     hash::{encode, hash_file, infer_mime_type, EncodedFileInfo},
 };
 
@@ -69,7 +72,7 @@ pub async fn upload_path(prefix: String, data_dir: PathBuf) -> Result<()> {
 
         let EncodedFileInfo {
             bao_hash,
-            read: size,
+            read,
             written,
         } = encode(&file, &blake3_hash.to_hex().to_string()).await?;
 
@@ -80,21 +83,33 @@ pub async fn upload_path(prefix: String, data_dir: PathBuf) -> Result<()> {
         // Relative path to Forest Data dir
         let path = file.strip_prefix(&data_dir)?.to_path_buf();
 
+        let min_slice = get_max_slice_index().await?;
+        let max_slice = 0; // TODO: compute actual max slice
+
         let file_info = FileInfo {
             blake3_hash,
             bao_hash,
-            size,
+            bytes_read: read,
+            bytes_written: written,
+            min_slice,
+            max_slice,
             path,
             parent_rev,
             mime_type,
             date_created: DateTime::from(metadata.created()?),
             date_modified: DateTime::from(metadata.modified()?),
             date_accessed: DateTime::from(metadata.accessed()?),
+            dropped: false,
+            removed: false,
         };
 
         insert_file(file_info).await?;
 
-        bytes_read += size;
+        if let Some(parent_hash) = parent_rev {
+            mark_as_dropped(parent_hash).await?;
+        }
+
+        bytes_read += read;
         bytes_written += written;
     }
 
@@ -116,4 +131,15 @@ pub async fn upload_path(prefix: String, data_dir: PathBuf) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Verify oldest file, newest file, and three random files inbetween
+pub async fn verify_data() -> Result<(String, u64, u64)> {
+    todo!();
+}
+
+/// Fully delete a file from both storage client and storage provider, instead of just dropping it from the storage client
+pub async fn delete_file(hash: blake3::Hash) -> Result<()> {
+    remove_hash(hash)?;
+    todo!();
 }
