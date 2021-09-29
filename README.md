@@ -33,7 +33,7 @@
 - [x] Bao verification
 - [x] Bao extraction
 
-### 0.0.2 - Persistence
+### 0.0.2 - File storage
 
 - [x] Sled for path lookup
 - [x] `file` SQL
@@ -44,8 +44,10 @@
 - [ ] Decode files stored in a configured storage volume, and restore them to the `Forage Data` folder
 - [ ] Verify a random slice of a file (accounting for files of varying sizes)
 - [x] Display encoded file list
+- [x] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
+- [x] Multiple files can be stored
 
-### 0.0.3 - Tor
+### 0.0.3 - Tor networking
 
 - [ ] Generate Onion v3 address
 - [ ] `peer` schema
@@ -53,6 +55,13 @@
     - [ ] Insert
     - [ ] Query
 - [ ] Open & Receive TCP socket over Tor hidden service
+
+### 0.0.4 - Authenticated encryption
+
+- [ ] Authentication between storage client and storage provider using Onion v3 addresses
+- [ ] Blake3 keyed hashes as a MAC
+- [ ] Files are encrypted using XChaCha8Blake3Siv authenticated encryption
+    - **Caution!** Experimental encryption!
 
 ### 0.1.0 - Proof of Concept
 
@@ -72,33 +81,15 @@ Goal: A storage client that can compress, encrypt, and store data on a remote st
     - [ ] Storage client checks 4KB slice against the same offset against local Bao Blake3 hash
 - [ ] Storage client can retrieve data from storage provider over storage channel
     - [ ] Data is written to disk at specified path
-
-### 0.1.1
-
-Focus: Security
-
-- [ ] Authentication between storage client and storage provider using Onion v3 addresses
-- [ ] Files are encrypted using XChaCha8Blake3Siv
-    - **Caution!** Experimental encryption!
-
-### 0.2.0 - MVP
-
-Focus: UX
-
-- [ ] Can add files to an existing storage channel without a local copy of data by decoding local Blake3 digest and providing additional bytes
-    - [ ] Appended bytes can be verified in-full by storage provider
-- [x] Multiple files can be stored
-- [x] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
 - [ ] Files are compressed using zstd dictionary compression
 - [ ] Individual files can be retrieved from storage provider
 
-### 0.2.1
+### 0.1.1
 
 - [ ] Complex volume and storage layouts
-- [ ] Log files can be compacted and offset truncation accounted for
 
 ### Future
 
-After this basic functionality exists, more exciting features are planned!
+After this basic functionality exists, more exciting features are planned, including apps on the [Start9 Embassy](https://start9.com) and [Umbrel](https://getumbrel.com)!
 
 ![Kabbalistic Tree of Life, because, woo. What does it mean!?](tree.gif)

@@ -13,7 +13,6 @@ use bao::{
 };
 use human_bytes::human_bytes;
 use log::{debug, error};
-use rand::Rng;
 
 use crate::config::get_storage_path;
 
@@ -38,14 +37,19 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
 
     let mut encoder = Encoder::new(&encoded_file);
 
-    let read = copy_reader_to_writer(&mut file, &mut encoder)? as u64;
-    // TODO: generate filler bytes for remainder of 1024 byte slice
+    let read = copy_reader_to_writer(&mut file, &mut encoder)?;
+
+    // Generate filler bytes for remainder of 1024 byte slice
+    let buf = Vec::with_capacity(read % 1024);
+    file.write_all(&buf)?;
+    file.flush()?;
+
     let bao_hash = encoder.finalize()?;
     let written = encoded_file.metadata()?.size();
 
     Ok(EncodedFileInfo {
         bao_hash,
-        read,
+        read: read as u64,
         written,
     })
 }
@@ -61,12 +65,12 @@ pub async fn verify(
     let encoded_file = File::open(encoded_file_path)?;
 
     // Provider
-    let mut extractor = SliceExtractor::new(encoded_file, slice_start, SLICE_LEN);
+    let mut extractor = SliceExtractor::new(encoded_file, slice_index * SLICE_LEN, SLICE_LEN);
     let mut slice = vec![];
     extractor.read_to_end(&mut slice)?;
 
     // Client
-    let mut decoder = SliceDecoder::new(&*slice, bao_hash, slice_start, SLICE_LEN);
+    let mut decoder = SliceDecoder::new(&*slice, bao_hash, slice_index * SLICE_LEN, SLICE_LEN);
 
     let mut decoded = vec![];
     match decoder.read_to_end(&mut decoded) {
@@ -179,7 +183,8 @@ mod tests {
         assert_eq!(written, 86219);
         assert_eq!(bao_hash.to_hex().as_str(), BAO_HASH);
 
-        verify(&bao_hash, &blake3_hash).await?;
+        let storage_path = get_storage_path().await?;
+        verify(&bao_hash, &storage_path.join(blake3_hash.as_str()), 5).await?;
 
         let out_path = Path::new("/tmp/forage.jpg");
         extract(out_path, &bao_hash, &blake3_hash).await?;

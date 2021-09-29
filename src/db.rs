@@ -362,12 +362,12 @@ pub struct SliceIndexInfo {
 
 pub async fn get_max_slice_index() -> Result<u64> {
     todo!();
-    Ok(())
+    Ok(0)
 }
 
 pub async fn get_slice_count() -> Result<u64> {
     todo!();
-    Ok(())
+    Ok(0)
 }
 
 pub async fn get_random_slice_index() -> Result<SliceIndexInfo> {
