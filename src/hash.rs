@@ -2,14 +2,13 @@ use std::{
     convert::TryInto,
     fs::{File, OpenOptions},
     io::{ErrorKind, Read, Write},
-    os::unix::prelude::MetadataExt,
     path::{Path, PathBuf},
 };
 
 use anyhow::Result;
 use bao::{
     decode::{Decoder, SliceDecoder},
-    encode::{Encoder, SliceExtractor},
+    encode::{encoded_size, Encoder, SliceExtractor},
 };
 use human_bytes::human_bytes;
 use log::{debug, error};
@@ -36,16 +35,17 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
         .open(get_storage_path().await?.join(hash_hex))?;
 
     let mut encoder = Encoder::new(&encoded_file);
-
     let read = copy_reader_to_writer(&mut file, &mut encoder)?;
 
     // Generate filler bytes for remainder of 1024 byte slice
-    let buf = Vec::with_capacity(read % 1024);
-    file.write_all(&buf)?;
-    file.flush()?;
+    let len = 1024 - read % 1024;
+    let buf = vec![0u8; len];
+    let written = encoded_size((read + len) as u64) as u64;
+
+    encoder.write_all(&buf)?;
+    encoder.flush()?;
 
     let bao_hash = encoder.finalize()?;
-    let written = encoded_file.metadata()?.size();
 
     Ok(EncodedFileInfo {
         bao_hash,
@@ -88,7 +88,12 @@ pub async fn verify(
     }
 }
 
-pub async fn extract(out: &Path, bao_hash: &bao::Hash, blake3_hash: &str) -> Result<usize> {
+pub async fn extract(
+    out: &Path,
+    bao_hash: &bao::Hash,
+    blake3_hash: &str,
+    file_size: u64,
+) -> Result<usize> {
     let encoded_file = File::open(get_storage_path().await?.join(blake3_hash))?;
     let mut extracted_file = OpenOptions::new()
         .read(true)
@@ -97,7 +102,8 @@ pub async fn extract(out: &Path, bao_hash: &bao::Hash, blake3_hash: &str) -> Res
         .truncate(true) // Warning! Will overwrite data TODO: Add a check
         .open(out)?;
 
-    let mut decoder = Decoder::new(encoded_file, bao_hash);
+    let extractor = SliceExtractor::new(encoded_file, 0, file_size);
+    let mut decoder = Decoder::new(extractor, bao_hash);
     let bytes_read = copy_reader_to_writer(&mut decoder, &mut extracted_file)?;
 
     debug!("bytes written: {}", human_bytes(bytes_read as f64));
@@ -118,12 +124,15 @@ pub fn parse_blake3_hash(hash_hex: &str) -> Result<blake3::Hash> {
 }
 
 // TODO: Make this use file streaming w/ hash digest
+// TODO: Also, make this use blake3 keyed hash instead of "salt"
 pub fn hash_file(path: &Path, salt: &mut Vec<u8>) -> Result<blake3::Hash> {
     let mut contents = vec![];
     File::open(path)?.read_to_end(&mut contents)?;
     contents.append(salt);
     let file_hash = blake3::hash(&contents);
-    debug!("path: {}, size: {}", path.to_str().unwrap(), contents.len(),);
+
+    debug!("path: {}, size: {}", path.to_string_lossy(), contents.len(),);
+
     Ok(file_hash)
 }
 
@@ -132,7 +141,7 @@ pub fn infer_mime_type(path: &Path) -> Result<String> {
         .map_or("application/octet-stream", |t| t.mime_type())
         .to_owned();
 
-    debug!("path: {}, type: {}", path.to_str().unwrap(), mime_type);
+    debug!("path: {}, type: {}", path.to_string_lossy(), mime_type);
 
     Ok(mime_type)
 }
@@ -159,9 +168,10 @@ fn copy_reader_to_writer(reader: &mut impl Read, writer: &mut impl Write) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::prelude::MetadataExt;
 
     const BLAKE3_HASH: &str = "bce2e13684b952c97d76484689ca2da88abe251820f7dcb4bec5b4b3a218e3b3";
-    const BAO_HASH: &str = "621aa075e15290f8730e9a1a09e5aa07a7ba5fd7ab3e0980258538ff751a8010";
+    const BAO_HASH: &str = "2bfebb57a5acf7348f7ef7338c1083e7454027373bec8693bc7b4beb206458f8";
     const SALT: &str = "d970c0e931dc490a842e04f4e9daa8e5e55d9875f53327e4ecc5e3280e7122ed";
 
     #[tokio::test]
@@ -171,7 +181,10 @@ mod tests {
 
         let orig_path = Path::new("forage.jpg");
         let blake3_hash = hash_file(orig_path, &mut salt1)?.to_hex();
-        assert_eq!(&blake3_hash, BLAKE3_HASH);
+        assert_eq!(
+            &blake3_hash, BLAKE3_HASH,
+            "test file matches hardcoded blake3 hash"
+        );
 
         let EncodedFileInfo {
             bao_hash,
@@ -179,19 +192,33 @@ mod tests {
             written,
         } = encode(orig_path, &blake3_hash).await?;
 
-        assert_eq!(read, 81155);
-        assert_eq!(written, 86219);
-        assert_eq!(bao_hash.to_hex().as_str(), BAO_HASH);
-
         let storage_path = get_storage_path().await?;
-        verify(&bao_hash, &storage_path.join(blake3_hash.as_str()), 5).await?;
+        let encoded_file_path = storage_path.join(blake3_hash.as_str());
+        let bytes_on_disk = File::open(&encoded_file_path)?.metadata()?.size();
+
+        assert_eq!(read, 81155, "bytes read from original file");
+        assert_eq!(written, 86984, "bytes computed to be written to disk");
+        assert_eq!(
+            bytes_on_disk, 86984,
+            "actual file size must match computed size"
+        );
+        assert_eq!(bao_hash.to_hex().as_str(), BAO_HASH, "bao hash must match");
+
+        verify(&bao_hash, &encoded_file_path, 5).await?;
 
         let out_path = Path::new("/tmp/forage.jpg");
-        extract(out_path, &bao_hash, &blake3_hash).await?;
+        extract(out_path, &bao_hash, &blake3_hash, read).await?;
+
+        let decoded_bytes_on_disk = File::open(&encoded_file_path)?.metadata()?.size();
+        assert_eq!(
+            decoded_bytes_on_disk, 81155,
+            "decoded file matches original length"
+        );
 
         assert_eq!(
             hash_file(out_path, &mut salt2)?.to_hex().as_str(),
-            BLAKE3_HASH
+            BLAKE3_HASH,
+            "extracted file matches original file blake3 hash"
         );
 
         Ok(())

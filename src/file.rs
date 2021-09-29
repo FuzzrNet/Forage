@@ -76,7 +76,7 @@ pub async fn upload_path(prefix: String, data_dir: PathBuf) -> Result<()> {
             written,
         } = encode(&file, &blake3_hash.to_hex().to_string()).await?;
 
-        let parent_rev = upsert_path(file.to_str().unwrap(), blake3_bytes)?;
+        let parent_rev = upsert_path(&file.to_string_lossy(), blake3_bytes)?;
         let mime_type = infer_mime_type(&file)?;
         let metadata = File::open(&file)?.metadata()?;
 
