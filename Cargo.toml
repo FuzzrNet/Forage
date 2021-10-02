@@ -7,7 +7,7 @@ repository = "https://github.com/FuzzrNet/Forage"
 license = "Unlicense"
 
 [build]
-rustflags = "-Ctarget-feature=+avx"
+rustflags = "-Ctarget-feature=+sse3,+avx,+aes"
 
 [features]
 default = ["rayon"]

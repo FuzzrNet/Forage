@@ -35,7 +35,7 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
         .open(get_storage_path().await?.join(hash_hex))?;
 
     let mut encoder = Encoder::new(&encoded_file);
-    let read = copy_reader_to_writer(&mut file, &mut encoder)?;
+    let read = copy_reader_to_writer(&mut file, &mut encoder, 0)?;
 
     // Generate filler bytes for remainder of 1024 byte slice
     let len = 1024 - read % 1024;
@@ -104,7 +104,7 @@ pub async fn extract(
 
     let extractor = SliceExtractor::new(encoded_file, 0, file_size);
     let mut decoder = Decoder::new(extractor, bao_hash);
-    let bytes_read = copy_reader_to_writer(&mut decoder, &mut extracted_file)?;
+    let bytes_read = copy_reader_to_writer(&mut decoder, &mut extracted_file, file_size as usize)?;
 
     debug!("bytes written: {}", human_bytes(bytes_read as f64));
 
@@ -146,7 +146,12 @@ pub fn infer_mime_type(path: &Path) -> Result<String> {
     Ok(mime_type)
 }
 
-fn copy_reader_to_writer(reader: &mut impl Read, writer: &mut impl Write) -> Result<usize> {
+// Limit of 0 means there's no limit
+fn copy_reader_to_writer(
+    reader: &mut impl Read,
+    writer: &mut impl Write,
+    limit: usize,
+) -> Result<usize> {
     // At least 16 KiB is necessary to use AVX-512 with BLAKE3.
     let mut buf = [0; 65536];
     let mut read = 0;
@@ -159,9 +164,14 @@ fn copy_reader_to_writer(reader: &mut impl Read, writer: &mut impl Write) -> Res
             Err(e) => return Err(e.into()),
         };
 
-        read += len;
+        if limit != 0 && read + len > limit {
+            writer.write_all(&buf[..limit - read])?;
+            return Ok(limit);
+        } else {
+            writer.write_all(&buf[..len])?;
+        }
 
-        writer.write_all(&buf[..len])?;
+        read += len;
     }
 }
 
@@ -209,7 +219,7 @@ mod tests {
         let out_path = Path::new("/tmp/forage.jpg");
         extract(out_path, &bao_hash, &blake3_hash, read).await?;
 
-        let decoded_bytes_on_disk = File::open(&encoded_file_path)?.metadata()?.size();
+        let decoded_bytes_on_disk = File::open(&out_path)?.metadata()?.size();
         assert_eq!(
             decoded_bytes_on_disk, 81155,
             "decoded file matches original length"
