@@ -7,7 +7,7 @@ use tokio::signal;
 
 use crate::{
     config::{get_data_dir, get_storage_path},
-    db::{get_random_slice_index, get_slice_count, list_files, SliceIndexInfo},
+    db::{get_max_slice, get_random_slice_index, list_files, SliceIndexInfo},
     file::upload_path,
     hash::{parse_bao_hash, verify},
 };
@@ -126,7 +126,7 @@ pub async fn try_main() -> Result<()> {
 
             let bao_hash = parse_bao_hash(&bao_hash)?;
             let encoded_path = get_storage_path().await?.join(blake3_hash);
-            let slice_count = get_slice_count().await?;
+            let slice_count = get_max_slice().await?;
 
             verify(&bao_hash, &encoded_path, slice_index).await?;
 

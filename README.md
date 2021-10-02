@@ -83,6 +83,10 @@ Goal: A storage client that can compress, encrypt, and store data on a remote st
     - [ ] Data is written to disk at specified path
 - [ ] Files are compressed using zstd dictionary compression
 - [ ] Individual files can be retrieved from storage provider
+- [ ] Files can be removed
+- [ ] Files can be overwritten, with old revisions still retrievable
+- [ ] The number of older revisions can be configured
+- [ ] Embeddable library available, with documentation
 
 ### 0.1.1
 

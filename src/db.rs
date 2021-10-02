@@ -6,7 +6,7 @@ use human_bytes::human_bytes;
 use log::error;
 use once_cell::sync::Lazy;
 use rand::{Rng, RngCore};
-use rusqlite::{named_params, Connection};
+use rusqlite::{named_params, params, Connection};
 use sled::{Config, Db, IVec, Mode};
 use tokio::sync::Mutex;
 
@@ -75,7 +75,7 @@ static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
                     dropped             BOOLEAN NOT NULL,
                     removed             BOOLEAN NOT NULL
                 );
-                CREATE TABLE IF NOT EXISTS peer (
+                CREATE TABLE IF NOT EXISTS peers (
                     tor_v3              TEXT NOT NULL,
                     label               TEXT,
                     date_created        DATETIME NOT NULL,
@@ -83,7 +83,7 @@ static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
                     provider            BOOLEAN NOT NULL
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_file_blake3_hash ON files (blake3_hash);
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_peer_tor_v3 ON peer (tor_v3);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_peer_tor_v3 ON peers (tor_v3);
                 COMMIT;",
     )
     .unwrap();
@@ -176,7 +176,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
                     date_created,
                     date_modified,
                     date_accessed,
-                    dropped
+                    dropped,
                     removed
                 ) VALUES (
                     :blake3_hash,
@@ -191,7 +191,7 @@ pub async fn insert_file(file: FileInfo) -> Result<()> {
                     :date_created,
                     :date_modified,
                     :date_accessed,
-                    :dropped
+                    :dropped,
                     :removed
                 )",
     )?;
@@ -246,7 +246,7 @@ pub fn flush_kv() -> Result<()> {
 
 pub async fn get_files() -> Result<Vec<FileInfo>> {
     let conn = DB_SQL.lock().await;
-    let mut stmt = conn.prepare_cached("SELECT * FROM files WHERE dropped = false")?;
+    let mut stmt = conn.prepare_cached("SELECT * FROM files WHERE dropped = FALSE")?;
 
     let results = stmt.query_map([], |row| {
         let blake3_hash: String = row.get(0)?;
@@ -332,12 +332,12 @@ pub async fn mark_as_dropped(blake3_hash: blake3::Hash) -> Result<()> {
     Ok(())
 }
 
-/// File is deleted from both storage clients and storage providers, but still tracked so gaps can be accounted for
-pub async fn mark_as_deleted(blake3_hash: blake3::Hash) -> Result<()> {
+/// File is removed from both storage clients and storage providers, but still tracked so gaps can be accounted for
+pub async fn mark_as_removed(blake3_hash: blake3::Hash) -> Result<()> {
     let conn = DB_SQL.lock().await;
     let mut stmt = conn.prepare_cached(
         "   UPDATE files
-                SET dropped = true, deleted = true
+                SET dropped = TRUE, removed = TRUE
                 WHERE blake3_hash = :blake3_hash",
     )?;
 
@@ -360,14 +360,17 @@ pub struct SliceIndexInfo {
     pub data_dir_path: String,
 }
 
-pub async fn get_max_slice_index() -> Result<u64> {
-    todo!();
-    Ok(0)
-}
+pub async fn get_max_slice() -> Result<u64> {
+    let conn = DB_SQL.lock().await;
+    let mut stmt = conn.prepare_cached(
+        "   SELECT MAX(max_slice)
+                FROM files
+                WHERE removed = FALSE",
+    )?;
 
-pub async fn get_slice_count() -> Result<u64> {
-    todo!();
-    Ok(0)
+    let max_slice = stmt.query_row(params![], |row| row.get(0).or(Ok(0)))?;
+
+    Ok(max_slice)
 }
 
 pub async fn get_random_slice_index() -> Result<SliceIndexInfo> {
@@ -378,13 +381,13 @@ pub async fn get_random_slice_index() -> Result<SliceIndexInfo> {
                 WHERE
                     min_slice >= :min_slice AND
                     max_slice < :max_slice AND
-                    deleted = false",
+                    removed = FALSE",
     )?;
 
     // TODO: replace all RNGs with CSPRNGs
-    let max_slice_index = get_max_slice_index().await?;
     let mut rng = rand::thread_rng();
-    let slice_index = rng.gen_range(0..max_slice_index);
+    let max_slice = get_max_slice().await?;
+    let slice_index = rng.gen_range(0..max_slice);
 
     let result = stmt.query_row(
         named_params! {
