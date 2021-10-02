@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use log::{info, warn};
+use log::{error, info, warn};
 use structopt::StructOpt;
 use tokio::signal;
 
@@ -123,17 +123,24 @@ pub async fn try_main() -> Result<()> {
                 file_slice_index: slice_index,
                 data_dir_path,
             } = get_random_slice_index().await?;
-
             let bao_hash = parse_bao_hash(&bao_hash)?;
             let encoded_path = get_storage_path().await?.join(blake3_hash);
             let slice_count = get_max_slice().await?;
 
-            verify(&bao_hash, &encoded_path, slice_index).await?;
-
-            println!(
-                "File chosen: {}\tIndex: {}\t of {} slices",
-                data_dir_path, slice_index, slice_count
-            );
+            match verify(&bao_hash, &encoded_path, slice_index).await {
+                Ok(()) => {
+                    info!(
+                        "Verification successful.\tFile chosen: {}\tIndex: {} of {} slices",
+                        data_dir_path, slice_index, slice_count
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        "Verification unsuccessful.\tFile chosen: {}\tIndex: {} of {} slices",
+                        data_dir_path, slice_index, slice_count
+                    );
+                }
+            }
         }
         Commands::Download { prefix } => {
             info!(

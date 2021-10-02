@@ -6,7 +6,7 @@ use human_bytes::human_bytes;
 use log::error;
 use once_cell::sync::Lazy;
 use rand::{Rng, RngCore};
-use rusqlite::{named_params, params, Connection};
+use rusqlite::{named_params, params, Connection, OptionalExtension};
 use sled::{Config, Db, IVec, Mode};
 use tokio::sync::Mutex;
 
@@ -368,31 +368,35 @@ pub async fn get_max_slice() -> Result<u64> {
                 WHERE removed = FALSE",
     )?;
 
-    let max_slice = stmt.query_row(params![], |row| row.get(0).or(Ok(0)))?;
+    let max_slice = stmt
+        .query_row(params![], |row| row.get(0))
+        .optional()
+        .unwrap_or(Some(0))
+        .unwrap();
 
     Ok(max_slice)
 }
 
 pub async fn get_random_slice_index() -> Result<SliceIndexInfo> {
+    let max_slice = get_max_slice().await?;
+
     let conn = DB_SQL.lock().await;
     let mut stmt = conn.prepare_cached(
         "   SELECT blake3_hash, bao_hash, min_slice, path
                 FROM files
                 WHERE
-                    min_slice >= :min_slice AND
-                    max_slice < :max_slice AND
+                    min_slice <= :slice_index AND
+                    max_slice >= :slice_index AND
                     removed = FALSE",
     )?;
 
     // TODO: replace all RNGs with CSPRNGs
     let mut rng = rand::thread_rng();
-    let max_slice = get_max_slice().await?;
     let slice_index = rng.gen_range(0..max_slice);
 
     let result = stmt.query_row(
         named_params! {
-            ":min_slice": slice_index,
-            ":max_slice": slice_index,
+            ":slice_index": slice_index,
         },
         |row| {
             let blake3_hash: String = row.get(0)?;
