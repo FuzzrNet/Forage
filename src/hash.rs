@@ -2,7 +2,7 @@ use std::{
     convert::TryInto,
     fs::{File, OpenOptions},
     io::{ErrorKind, Read, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use anyhow::Result;
@@ -58,7 +58,7 @@ const SLICE_LEN: u64 = 1024;
 
 pub async fn verify(
     bao_hash: &bao::Hash,
-    encoded_file_path: &PathBuf,
+    encoded_file_path: &Path,
     slice_index: u64,
 ) -> Result<()> {
     // Client

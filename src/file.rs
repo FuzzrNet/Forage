@@ -1,4 +1,9 @@
-use std::{env::current_dir, fs::File, path::PathBuf, time::Instant};
+use std::{
+    env::current_dir,
+    fs::File,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use anyhow::Result;
 use chrono::DateTime;
@@ -27,7 +32,7 @@ impl Offset {
     }
 }
 
-pub fn walk_dir(path: &PathBuf, prefix: String) -> Result<Vec<PathBuf>> {
+pub fn walk_dir(path: &Path, prefix: String) -> Result<Vec<PathBuf>> {
     let start = Instant::now();
     let mut paths = vec![];
     let cwd = current_dir()?.to_string_lossy().to_string();

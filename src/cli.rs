@@ -135,10 +135,7 @@ pub async fn try_main() -> Result<()> {
                     );
                 }
                 Err(e) => {
-                    error!(
-                        "Verification unsuccessful.\tFile chosen: {}\tIndex: {} of {} slices",
-                        data_dir_path, slice_index, slice_count
-                    );
+                    error!("Verification unsuccessful.\tError:{}", e);
                 }
             }
         }
