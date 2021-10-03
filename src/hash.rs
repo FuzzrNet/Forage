@@ -99,7 +99,7 @@ pub async fn extract(
         .read(true)
         .write(true)
         .create(true)
-        .truncate(true) // Warning! Will overwrite data TODO: Add a check
+        .truncate(true) // Warning! Will overwrite data
         .open(out)?;
 
     let extractor = SliceExtractor::new(encoded_file, 0, file_size);

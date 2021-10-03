@@ -7,8 +7,8 @@ use tokio::signal;
 
 use crate::{
     config::{get_data_dir, get_storage_path},
-    db::{get_max_slice, get_random_slice_index, list_files, SliceIndexInfo},
-    file::upload_path,
+    db::{get_files, get_max_slice, get_random_slice_index, list_files, SliceIndexInfo},
+    file::{download_path, upload_path},
     hash::{parse_bao_hash, verify},
 };
 
@@ -56,14 +56,14 @@ enum Commands {
         #[structopt(default_value = "")]
         prefix: String,
     },
-    /// Issues a challenge to verify if a provider is still hosting data for this storage channel.
-    Verify,
     /// Retrieve a file by its path prefix over available storage channels (leave empty to retrieve all files, de-duplicating as necessary)
     Download {
         /// Path prefix. Multiple path matches will be saved to separate files and folders.
         #[structopt(default_value = "")]
         prefix: String,
     },
+    /// Issues a challenge to verify if a provider is still hosting data for this storage channel.
+    Verify,
     /// List files stored over storage channel
     ListFiles {
         /// Filter paths by prefix
@@ -111,18 +111,50 @@ pub async fn try_main() -> Result<()> {
         Commands::ListChannels { providers, clients } => unimplemented!(),
         Commands::CloseChannel { address, force } => unimplemented!(),
         Commands::Upload { prefix } => {
-            info!("Storing data in Forest Data directory over available storage channels...");
+            info!("Storing data in Forage Data directory over available storage channels...");
             let data_dir = get_data_dir().await?;
-            upload_path(prefix, data_dir).await?;
+            upload_path(&prefix, &data_dir).await?;
+        }
+        Commands::Download { prefix } => {
+            info!(
+                "Retrieving files under {} over available storage channels...",
+                prefix
+            );
+
+            let data_dir = get_data_dir().await?;
+
+            // Get files from SQL DB
+            let files = get_files().await?;
+
+            // Check paths of existing files in the Forage Data dir
+            // If a file is absent, extract it to its relative path
+            let updated = download_path(&prefix, &data_dir).await?;
+
+            info!(
+                "{} files in {}/{} updated.",
+                updated.len(),
+                data_dir.to_string_lossy(),
+                prefix
+            );
+
+            // TODO: Changed / dropped file handling:
+
+            // TODO: If hashes differ, add the new revision and drop the old file
+
+            // TODO: Get dropped files
+
+            // TODO: If dropped hashes differ from any previous revision, add the new revision, otherwise, remove it
         }
         Commands::Verify => {
-            info!("Verify data possession on existing storage channels...",);
+            info!("Verify data possession on existing storage channels...");
+
             let SliceIndexInfo {
                 blake3_hash,
                 bao_hash,
                 file_slice_index: slice_index,
                 data_dir_path,
             } = get_random_slice_index().await?;
+
             let bao_hash = parse_bao_hash(&bao_hash)?;
             let encoded_path = get_storage_path().await?.join(blake3_hash);
             let slice_count = get_max_slice().await?;
@@ -138,14 +170,6 @@ pub async fn try_main() -> Result<()> {
                     error!("Verification unsuccessful.\tError:{}", e);
                 }
             }
-        }
-        Commands::Download { prefix } => {
-            info!(
-                "Retrieving files under {} over available storage channels...",
-                prefix
-            );
-            warn!("Not yet implemented");
-            todo!();
         }
         Commands::ListFiles { prefix, depth } => {
             let data_dir = get_data_dir().await?;

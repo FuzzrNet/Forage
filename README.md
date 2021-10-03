@@ -42,7 +42,7 @@
     - [x] Query
 - [x] Encode files in the `Forage Data` folder, and store them in a configured storage volume
 - [ ] Decode files stored in a configured storage volume, and restore them to the `Forage Data` folder
-- [ ] Verify a random slice of a file (accounting for files of varying sizes)
+- [x] Verify a random slice of a file (accounting for files of varying sizes)
 - [x] Display encoded file list
 - [x] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
 - [x] Multiple files can be stored
@@ -87,6 +87,7 @@ Goal: A storage client that can compress, encrypt, and store data on a remote st
 - [ ] Files can be overwritten, with old revisions still retrievable
 - [ ] The number of older revisions can be configured
 - [ ] Embeddable library available, with documentation
+- [ ] Parallel processing for lots of files
 
 ### 0.1.1
 
