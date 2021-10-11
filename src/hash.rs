@@ -10,8 +10,10 @@ use bao::{
     decode::{Decoder, SliceDecoder},
     encode::{encoded_size, Encoder, SliceExtractor},
 };
+use blake3::Hasher;
 use human_bytes::human_bytes;
 use log::{debug, error};
+use tokio::fs::create_dir_all;
 
 use crate::config::get_storage_path;
 
@@ -95,6 +97,14 @@ pub async fn extract(
     file_size: u64,
 ) -> Result<usize> {
     let encoded_file = File::open(get_storage_path().await?.join(blake3_hash))?;
+
+    if let Some(parent_dir) = out.to_path_buf().parent() {
+        // Will probably error if a file exists where a directory should be... TODO: Handle this case gracefully
+        if !Path::new(parent_dir).exists() {
+            create_dir_all(parent_dir).await?;
+        }
+    }
+
     let mut extracted_file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -125,14 +135,12 @@ pub fn parse_blake3_hash(hash_hex: &str) -> Result<blake3::Hash> {
 
 // TODO: Make this use file streaming w/ hash digest
 // TODO: Also, make this use blake3 keyed hash instead of "salt"
-pub fn hash_file(path: &Path, salt: &mut Vec<u8>) -> Result<blake3::Hash> {
-    let mut contents = vec![];
-    File::open(path)?.read_to_end(&mut contents)?;
-    contents.append(salt);
-    let file_hash = blake3::hash(&contents);
-
-    debug!("path: {}, size: {}", path.to_string_lossy(), contents.len(),);
-
+pub fn hash_file(path: &Path, hash_key: &[u8; 32]) -> Result<blake3::Hash> {
+    let mut file_reader = File::open(path)?;
+    let mut hasher = Hasher::new_keyed(hash_key);
+    let bytes_read = copy_reader_to_writer(&mut file_reader, &mut hasher, 0)?;
+    let file_hash = hasher.finalize();
+    debug!("path: {}, size: {}", path.to_string_lossy(), bytes_read);
     Ok(file_hash)
 }
 
@@ -180,17 +188,17 @@ mod tests {
     use super::*;
     use std::os::unix::prelude::MetadataExt;
 
-    const BLAKE3_HASH: &str = "bce2e13684b952c97d76484689ca2da88abe251820f7dcb4bec5b4b3a218e3b3";
+    const BLAKE3_HASH: &str = "42da460c6136a30d7e41d8437fca41483e4d8a3c202433b5aa5244acf4c192ef";
     const BAO_HASH: &str = "2bfebb57a5acf7348f7ef7338c1083e7454027373bec8693bc7b4beb206458f8";
-    const SALT: &str = "d970c0e931dc490a842e04f4e9daa8e5e55d9875f53327e4ecc5e3280e7122ed";
+    const HASH_KEY: &str = "8036656ceb7d0d35306d7b7737a4d3e56b4ce18d1f02733effda0958e05c2782";
 
     #[tokio::test]
     async fn integration() -> Result<()> {
-        let mut salt1 = hex::decode(SALT)?;
-        let mut salt2 = hex::decode(SALT)?;
+        let mut hash_key: [u8; 32] = Default::default();
+        hash_key.copy_from_slice(&hex::decode(HASH_KEY)?);
 
         let orig_path = Path::new("forage.jpg");
-        let blake3_hash = hash_file(orig_path, &mut salt1)?.to_hex();
+        let blake3_hash = hash_file(orig_path, &hash_key)?.to_hex();
         assert_eq!(
             &blake3_hash, BLAKE3_HASH,
             "test file matches hardcoded blake3 hash"
@@ -226,7 +234,7 @@ mod tests {
         );
 
         assert_eq!(
-            hash_file(out_path, &mut salt2)?.to_hex().as_str(),
+            hash_file(out_path, &hash_key)?.to_hex().as_str(),
             BLAKE3_HASH,
             "extracted file matches original file blake3 hash"
         );

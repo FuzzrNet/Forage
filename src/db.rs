@@ -1,4 +1,5 @@
-use std::{cmp, convert::TryInto, path::PathBuf, str::FromStr, sync::Arc};
+#![allow(dead_code)]
+use std::{cmp, collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Result;
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -15,16 +16,18 @@ use crate::{
     hash::{parse_bao_hash, parse_blake3_hash},
 };
 
+const HASH_KEY_CONTEXT: &str = "Forage Storage User Hash Key";
+
 /// # Databases
 
 /// ## Sled keystore
 
 /// ### Trees / Keys
-const USR_CONFIG_TREE: &str = "usr_cfg:";
-const USR_CONFIG_FILE_SALT: &str = "file_salt";
+const USR_CFG_TREE: &str = "usr_cfg";
+const USR_CFG_HASH_KEY: &str = "hash_key";
 
-const PATHS_TREE: &str = "paths:";
-const HASH_TREE: &str = "hash:";
+const PATHS_TREE: &str = "paths";
+const HASH_TREE: &str = "hash";
 
 static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
     Arc::new(
@@ -93,30 +96,35 @@ static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
 
 /// ## Persisted User Config
 pub struct UsrCfg {
-    pub file_salt: Vec<u8>,
+    pub hash_key: [u8; 32],
 }
 
-/// ### Salt for file hashes is generated and then persisted so data can be de-duplicated without revealing its original hash
+fn fix_slice<const N: usize>(slice: &[u8]) -> [u8; N] {
+    let mut fixed_arr: [u8; N] = [0; N];
+    fixed_arr.copy_from_slice(slice);
+    fixed_arr
+}
+
+/// ### Hash key for keyed hashes is generated and then persisted so data can be de-duplicated deterministically without revealing the original hash
 fn init_usr_cfg() -> Result<UsrCfg> {
-    let file_salt = match DB_KV
-        .open_tree(USR_CONFIG_TREE)?
-        .get(USR_CONFIG_FILE_SALT)?
-    {
-        Some(fs) => fs.to_vec(),
+    let hash_key: [u8; 32] = match DB_KV.open_tree(USR_CFG_TREE)?.get(USR_CFG_HASH_KEY)? {
+        Some(fs) => fix_slice::<32>(&fs),
         None => {
             let mut rng = rand::thread_rng();
-            let mut file_salt = vec![0; 32];
-            rng.fill_bytes(&mut file_salt);
+            let mut key_material = vec![0; 32];
+            rng.fill_bytes(&mut key_material);
+
+            let hash_key = blake3::derive_key(HASH_KEY_CONTEXT, &key_material);
 
             DB_KV
-                .open_tree(USR_CONFIG_TREE)?
-                .insert(USR_CONFIG_FILE_SALT, file_salt.as_slice())?;
+                .open_tree(USR_CFG_TREE)?
+                .insert(USR_CFG_HASH_KEY, IVec::from(&hash_key))?;
 
-            file_salt
+            hash_key
         }
     };
 
-    Ok(UsrCfg { file_salt })
+    Ok(UsrCfg { hash_key })
 }
 
 pub static USR_CONFIG: Lazy<UsrCfg> = Lazy::new(|| init_usr_cfg().unwrap());
@@ -244,25 +252,60 @@ pub fn flush_kv() -> Result<()> {
     Ok(())
 }
 
-pub async fn get_files() -> Result<Vec<FileInfo>> {
+type BlakeHashSet = HashSet<blake3::Hash>;
+
+fn join_set(set: BlakeHashSet) -> String {
+    format!(
+        "\"{}\"",
+        &set.iter()
+            .map(|h| h.to_hex().to_string())
+            .collect::<Vec<String>>()
+            .join("\", \""),
+    )
+}
+
+fn diff_set(set_a: BlakeHashSet, set_b: &BlakeHashSet) -> BlakeHashSet {
+    set_a.difference(set_b).into_iter().copied().collect()
+}
+
+/// Accepts optional comma-separated strings for specific hashes to retrieve, or omit
+pub async fn get_files(
+    include: Option<HashSet<blake3::Hash>>,
+    exclude: Option<HashSet<blake3::Hash>>,
+) -> Result<Vec<FileInfo>> {
     let conn = DB_SQL.lock().await;
-    let mut stmt = conn.prepare_cached("SELECT * FROM files WHERE dropped = FALSE")?;
+    let mut query = "SELECT * FROM files WHERE dropped = FALSE".to_owned();
+
+    if let Some(include_set) = include {
+        let in_str = if let Some(exclude_set) = exclude.as_ref() {
+            join_set(diff_set(include_set, exclude_set))
+        } else {
+            join_set(include_set)
+        };
+        query += &format!(" AND blake3_hash IN ({})", in_str);
+    }
+
+    if let Some(exclude_set) = exclude {
+        query += &format!(" AND blake3_hash NOT IN ({})", join_set(exclude_set));
+    }
+
+    let mut stmt = conn.prepare(&query)?;
 
     let results = stmt.query_map([], |row| {
-        let blake3_hash: String = row.get(0)?;
-        let bao_hash: String = row.get(1)?;
-        let bytes_read: u64 = row.get(2)?;
-        let bytes_written: u64 = row.get(3)?;
-        let min_slice: u64 = row.get(4)?;
-        let max_slice: u64 = row.get(5)?;
-        let path: String = row.get(6)?;
-        let parent_rev: Option<String> = row.get(7)?;
-        let mime_type = row.get(8)?;
-        let date_created: i64 = row.get(9)?;
-        let date_modified: i64 = row.get(10)?;
-        let date_accessed: i64 = row.get(11)?;
-        let dropped: bool = row.get(12)?;
-        let removed: bool = row.get(13)?;
+        let blake3_hash: String = row.get("blake3_hash")?;
+        let bao_hash: String = row.get("bao_hash")?;
+        let bytes_read: u64 = row.get("bytes_read")?;
+        let bytes_written: u64 = row.get("bytes_written")?;
+        let min_slice: u64 = row.get("min_slice")?;
+        let max_slice: u64 = row.get("max_slice")?;
+        let path: String = row.get("path")?;
+        let parent_rev: Option<String> = row.get("parent_rev")?;
+        let mime_type = row.get("mime_type")?;
+        let date_created: i64 = row.get("date_created")?;
+        let date_modified: i64 = row.get("date_modified")?;
+        let date_accessed: i64 = row.get("date_accessed")?;
+        let dropped: bool = row.get("dropped")?;
+        let removed: bool = row.get("removed")?;
 
         let blake3_hash = parse_blake3_hash(&blake3_hash).unwrap();
         let bao_hash = parse_bao_hash(&bao_hash).unwrap();
@@ -296,12 +339,13 @@ pub async fn get_files() -> Result<Vec<FileInfo>> {
 }
 
 pub async fn list_files() -> Result<Vec<String>> {
-    let max_path_len = get_files().await?.iter().fold(0, |acc, info| {
+    let files = get_files(None, None).await?;
+
+    let max_path_len = files.iter().fold(0, |acc, info| {
         cmp::max(acc, info.path.to_string_lossy().len())
     });
 
-    Ok(get_files()
-        .await?
+    Ok(files
         .iter()
         .map(|info| {
             let path = info.path.to_string_lossy();
@@ -377,12 +421,10 @@ pub async fn get_max_slice() -> Result<u64> {
     Ok(max_slice)
 }
 
-pub async fn get_random_slice_index() -> Result<SliceIndexInfo> {
-    let max_slice = get_max_slice().await?;
-
+pub async fn get_random_slice_index(max_slice: u64) -> Result<SliceIndexInfo> {
     let conn = DB_SQL.lock().await;
     let mut stmt = conn.prepare_cached(
-        "   SELECT blake3_hash, bao_hash, min_slice, path
+        "   SELECT blake3_hash, bao_hash, path
                 FROM files
                 WHERE
                     min_slice <= :slice_index AND
@@ -392,19 +434,16 @@ pub async fn get_random_slice_index() -> Result<SliceIndexInfo> {
 
     // TODO: replace all RNGs with CSPRNGs
     let mut rng = rand::thread_rng();
-    let slice_index = rng.gen_range(0..max_slice);
+    let file_slice_index = rng.gen_range(0..max_slice);
 
     let result = stmt.query_row(
         named_params! {
-            ":slice_index": slice_index,
+            ":slice_index": file_slice_index,
         },
         |row| {
-            let blake3_hash: String = row.get(0)?;
-            let bao_hash: String = row.get(1)?;
-            let min_slice: u64 = row.get(2)?;
-            let data_dir_path: String = row.get(3)?;
-
-            let file_slice_index = slice_index - min_slice;
+            let blake3_hash: String = row.get("blake3_hash")?;
+            let bao_hash: String = row.get("bao_hash")?;
+            let data_dir_path: String = row.get("path")?;
 
             Ok(SliceIndexInfo {
                 blake3_hash,
@@ -416,4 +455,20 @@ pub async fn get_random_slice_index() -> Result<SliceIndexInfo> {
     )?;
 
     Ok(result)
+}
+
+pub async fn get_hashes_by_prefix(
+    prefix: &str,
+    exclude: &HashSet<blake3::Hash>,
+) -> Result<HashSet<blake3::Hash>> {
+    let mut hashes = HashSet::new();
+
+    for try_hash in DB_KV.open_tree(PATHS_TREE)?.scan_prefix(prefix).values() {
+        let blake3_hash = ivec_to_blake3_hash(try_hash?)?;
+        if !exclude.contains(&blake3_hash) {
+            hashes.insert(blake3_hash);
+        }
+    }
+
+    Ok(hashes)
 }

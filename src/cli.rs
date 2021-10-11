@@ -7,15 +7,15 @@ use tokio::signal;
 
 use crate::{
     config::{get_data_dir, get_storage_path},
-    db::{get_files, get_max_slice, get_random_slice_index, list_files, SliceIndexInfo},
-    file::{download_path, upload_path},
+    db::{get_max_slice, get_random_slice_index, list_files, SliceIndexInfo},
+    file::{download_by_prefix, upload_path},
     hash::{parse_bao_hash, verify},
 };
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
 #[structopt(name = "forage")]
-/// A node for facilitating Storage Channels over the Lightning Network.
+/// Forage is for Storage.
 enum Commands {
     /// Create a new Onion URL and auth code for an authorized storage client
     NewClient {
@@ -116,19 +116,13 @@ pub async fn try_main() -> Result<()> {
             upload_path(&prefix, &data_dir).await?;
         }
         Commands::Download { prefix } => {
-            info!(
-                "Retrieving files under {} over available storage channels...",
-                prefix
-            );
+            info!("Retrieving unsynced files over available storage channels...");
 
             let data_dir = get_data_dir().await?;
 
-            // Get files from SQL DB
-            let files = get_files().await?;
-
             // Check paths of existing files in the Forage Data dir
             // If a file is absent, extract it to its relative path
-            let updated = download_path(&prefix, &data_dir).await?;
+            let updated = download_by_prefix(&prefix, &data_dir).await?;
 
             info!(
                 "{} files in {}/{} updated.",
@@ -146,28 +140,34 @@ pub async fn try_main() -> Result<()> {
             // TODO: If dropped hashes differ from any previous revision, add the new revision, otherwise, remove it
         }
         Commands::Verify => {
-            info!("Verify data possession on existing storage channels...");
+            info!("Verifying data possession on existing storage channels...");
 
-            let SliceIndexInfo {
-                blake3_hash,
-                bao_hash,
-                file_slice_index: slice_index,
-                data_dir_path,
-            } = get_random_slice_index().await?;
-
-            let bao_hash = parse_bao_hash(&bao_hash)?;
-            let encoded_path = get_storage_path().await?.join(blake3_hash);
             let slice_count = get_max_slice().await?;
 
-            match verify(&bao_hash, &encoded_path, slice_index).await {
-                Ok(()) => {
-                    info!(
-                        "Verification successful.\tFile chosen: {}\tIndex: {} of {} slices",
-                        data_dir_path, slice_index, slice_count
-                    );
-                }
-                Err(e) => {
-                    error!("Verification unsuccessful.\tError:{}", e);
+            if slice_count == 0 {
+                info!("No slices to verify. Try adding some files.");
+            } else {
+                let SliceIndexInfo {
+                    blake3_hash,
+                    bao_hash,
+                    file_slice_index: slice_index,
+                    data_dir_path,
+                } = get_random_slice_index(slice_count).await?;
+
+                let bao_hash = parse_bao_hash(&bao_hash)?;
+                let encoded_path = get_storage_path().await?.join(blake3_hash);
+                info!(
+                    "File chosen: {}\tIndex: {} of {} slices",
+                    data_dir_path, slice_index, slice_count
+                );
+
+                match verify(&bao_hash, &encoded_path, slice_index).await {
+                    Ok(()) => {
+                        info!("Verification successful.");
+                    }
+                    Err(e) => {
+                        error!("Verification unsuccessful.\tError: {}", e);
+                    }
                 }
             }
         }

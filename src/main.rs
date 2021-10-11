@@ -1,13 +1,13 @@
+use std::{env, error::Error, process};
+
+use log::error;
+
 mod cli;
 mod config;
 mod db;
 mod file;
 mod hash;
 mod net;
-
-use std::{env, error::Error, process};
-
-use log::error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
