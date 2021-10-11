@@ -12,15 +12,16 @@
 
 **Caution!** This is experimental, potentially dangerous technology that hasn't yet been audited!
 
-## Dependencies
+## Notable Dependencies
 
 - Embedded
-    - [Blake3 cryptographic hash algorithm](https://github.com/BLAKE3-team/BLAKE3)
-    - [Bao Verified Streaming for Provable Data Possession](https://github.com/oconnor663/bao)
-    - [XChaCha8Blake3Siv encryption](https://github.com/PaulGrandperrin/XChaCha8Blake3Siv)
-    - [Torut Tor controller](https://lib.rs/crates/torut)
-    - [zstd_safe dictionary compression](https://github.com/gyscos/zstd-rs)
-    - [Rusqlite embedded database](https://github.com/rusqlite/rusqlite)
+    - [x] [Blake3 cryptographic hash algorithm](https://github.com/BLAKE3-team/BLAKE3)
+    - [x] [Bao Verified Streaming for Provable Data Possession](https://github.com/oconnor663/bao)
+    - [ ] [XChaCha8Blake3Siv encryption](https://github.com/PaulGrandperrin/XChaCha8Blake3Siv)
+    - [ ] [Torut Tor controller](https://lib.rs/crates/torut)
+    - [ ] [zstd_safe dictionary compression](https://github.com/gyscos/zstd-rs)
+    - [x] [Rusqlite embedded SQL database](https://github.com/rusqlite/rusqlite)
+    - [x] [Sled embedded keystore](https://github.com/spacejam/sled)
 - External
     - Local Tor SOCKS proxy
 
@@ -32,15 +33,38 @@
 - [x] Bao verification
 - [x] Bao extraction
 
-### 0.0.2 - Persistence
+### 0.0.2 - File storage
 
-- [ ] Append new files to central log file
-- [ ] Extraction from appended log
+- [x] Sled for path lookup
+- [x] `file` SQL
+    - [x] Schema
+    - [x] Insert
+    - [x] Query
+- [x] Encode files in the `Forage Data` folder, and store them in a configured storage volume
+- [x] Decode files stored in a configured storage volume, and restore them to the `Forage Data` folder
+- [x] Verify a random slice of a file (accounting for files of varying sizes)
+- [x] Display encoded file list
+- [x] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
+- [x] Multiple files can be stored
 
-### 0.0.3 - Tor
+### 0.0.3 - Tor networking
 
 - [ ] Generate Onion v3 address
+- [ ] `peer` schema
+    - [x] Schema
+    - [ ] Insert
+    - [ ] Query
 - [ ] Open & Receive TCP socket over Tor hidden service
+
+### 0.0.4 - Authenticated encryption
+
+- [ ] Authentication between storage client and storage provider using Onion v3 addresses
+- [ ] Blake3 keyed hashes as a MAC
+- [ ] Files are encrypted using XChaCha8Blake3Siv authenticated encryption
+    - **Caution!** Experimental encryption!
+- [ ] CSPRNGs where RNGs are used
+- [ ] Use randomized padding instead of zeroed padding
+- [ ] Zeroization of private keys after dropped from memory
 
 ### 0.1.0 - Proof of Concept
 
@@ -60,30 +84,20 @@ Goal: A storage client that can compress, encrypt, and store data on a remote st
     - [ ] Storage client checks 4KB slice against the same offset against local Bao Blake3 hash
 - [ ] Storage client can retrieve data from storage provider over storage channel
     - [ ] Data is written to disk at specified path
+- [ ] Files are compressed using zstd dictionary compression
+- [ ] Individual files can be retrieved from storage provider
+- [ ] Files can be removed
+- [ ] Files can be overwritten, with old revisions still retrievable
+- [ ] The number of older revisions can be configured
+- [ ] Embeddable library available, with documentation
+- [ ] Parallel processing for lots of files
 
 ### 0.1.1
 
-Focus: Security
-
-- [ ] Authentication between storage client and storage provider using Onion v3 addresses
-- [ ] Files are encrypted using XChaCha8Blake3Siv
-    - **Caution!** Experimental encryption!
-
-### 0.2.0 - MVP
-
-Focus: UX
-
-- [ ] Can add files to an existing storage channel without a local copy of data by decoding local Blake3 digest and providing additional bytes
-    - [ ] Appended bytes can be verified in-full by storage provider
-- [ ] Multiple files can be stored
-- [ ] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
-- [ ] Files are compressed using zstd dictionary compression
-- [ ] Individual files can be retrieved from storage client's log on storage provider
-
-### 0.2.1
-
-- [ ] Log files can be compacted and offset truncation accounted for
+- [ ] Complex volume and storage layouts
 
 ### Future
 
-After this basic functionality exists, more exciting features are planned!
+After this basic functionality exists, more exciting features are planned, including apps on the [Start9 Embassy](https://start9.com) and [Umbrel](https://getumbrel.com)!
+
+![Kabbalistic Tree of Life, because, woo. What does it mean!?](tree.gif)

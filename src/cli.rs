@@ -1,14 +1,21 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use log::{info, warn};
+use log::{error, info, warn};
 use structopt::StructOpt;
 use tokio::signal;
+
+use crate::{
+    config::{get_data_dir, get_storage_path},
+    db::{get_max_slice, get_random_slice_index, list_files, SliceIndexInfo},
+    file::{download_by_prefix, upload_path},
+    hash::{parse_bao_hash, verify},
+};
 
 #[allow(dead_code)]
 #[derive(StructOpt, Debug)]
 #[structopt(name = "forage")]
-/// A node for facilitating Storage Channels over the Lightning Network.
+/// Forage is for Storage.
 enum Commands {
     /// Create a new Onion URL and auth code for an authorized storage client
     NewClient {
@@ -43,14 +50,21 @@ enum Commands {
         #[structopt(long, short)]
         force: bool,
     },
-    /// Store a file or directory
-    Store {
-        /// File or directory to store over the storage channel
-        #[structopt(parse(from_os_str))]
-        path: PathBuf,
+    /// Uploads files in the Forage Data folder on available storage channels (de-duplicating and creating revisions as necessary)
+    Upload {
+        /// Restrict pruning to just paths with this prefix (relative to the Forage Data folder)
+        #[structopt(default_value = "")]
+        prefix: String,
     },
+    /// Retrieve a file by its path prefix over available storage channels (leave empty to retrieve all files, de-duplicating as necessary)
+    Download {
+        /// Path prefix. Multiple path matches will be saved to separate files and folders.
+        #[structopt(default_value = "")]
+        prefix: String,
+    },
+    /// Issues a challenge to verify if a provider is still hosting data for this storage channel.
+    Verify,
     /// List files stored over storage channel
-    #[structopt(skip)]
     ListFiles {
         /// Filter paths by prefix
         #[structopt(default_value = "/")]
@@ -58,19 +72,6 @@ enum Commands {
         /// Recursive directory listing depth (if 0, list all files under the prefix recursively)
         #[structopt(default_value = "1")]
         depth: usize,
-    },
-    /// Retrieve a file by hash over available storage channels
-    Retrieve {
-        /// Path prefix. Multiple path matches will be saved to separate files and folders.
-        prefix: String,
-        /// Where to save the retrieved data
-        #[structopt(parse(from_os_str))]
-        out: PathBuf,
-    },
-    /// Issues a challenge to check if a provider is still hosting data for this storage channel.
-    Check {
-        /// Tor Onion v3 address to authorized storage node.
-        address: String,
     },
     /// Allocate storage as an available storage provider.
     #[structopt(skip)]
@@ -109,31 +110,82 @@ pub async fn try_main() -> Result<()> {
         }
         Commands::ListChannels { providers, clients } => unimplemented!(),
         Commands::CloseChannel { address, force } => unimplemented!(),
-        Commands::Store { path } => {
-            info!("Storing a file at path {}...", path.to_str().unwrap());
-            warn!("Not yet implemented");
-            todo!();
+        Commands::Upload { prefix } => {
+            info!("Storing data in Forage Data directory over available storage channels...");
+            let data_dir = get_data_dir().await?;
+            upload_path(&prefix, &data_dir).await?;
         }
-        Commands::ListFiles { prefix, depth } => unimplemented!(),
-        Commands::Retrieve { prefix, out } => {
-            info!("Retrieving files starting with {} over available storage channels and placing at {}...", prefix, out.to_str().unwrap());
-            warn!("Not yet implemented");
-            todo!();
-        }
-        Commands::Check { address } => {
+        Commands::Download { prefix } => {
+            info!("Retrieving unsynced files over available storage channels...");
+
+            let data_dir = get_data_dir().await?;
+
+            // Check paths of existing files in the Forage Data dir
+            // If a file is absent, extract it to its relative path
+            let updated = download_by_prefix(&prefix, &data_dir).await?;
+
             info!(
-                "Check that all files are being stored on an existing storage channel at {}...",
-                address
+                "{} files in {}/{} updated.",
+                updated.len(),
+                data_dir.to_string_lossy(),
+                prefix
             );
-            warn!("Not yet implemented");
-            todo!();
+
+            // TODO: Changed / dropped file handling:
+
+            // TODO: If hashes differ, add the new revision and drop the old file
+
+            // TODO: Get dropped files
+
+            // TODO: If dropped hashes differ from any previous revision, add the new revision, otherwise, remove it
+        }
+        Commands::Verify => {
+            info!("Verifying data possession on existing storage channels...");
+
+            let slice_count = get_max_slice().await?;
+
+            if slice_count == 0 {
+                info!("No slices to verify. Try adding some files.");
+            } else {
+                let SliceIndexInfo {
+                    blake3_hash,
+                    bao_hash,
+                    file_slice_index: slice_index,
+                    data_dir_path,
+                } = get_random_slice_index(slice_count).await?;
+
+                let bao_hash = parse_bao_hash(&bao_hash)?;
+                let encoded_path = get_storage_path().await?.join(blake3_hash);
+                info!(
+                    "File chosen: {}\tIndex: {} of {} slices",
+                    data_dir_path, slice_index, slice_count
+                );
+
+                match verify(&bao_hash, &encoded_path, slice_index).await {
+                    Ok(()) => {
+                        info!("Verification successful.");
+                    }
+                    Err(e) => {
+                        error!("Verification unsuccessful.\tError: {}", e);
+                    }
+                }
+            }
+        }
+        Commands::ListFiles { prefix, depth } => {
+            let data_dir = get_data_dir().await?;
+            let files = list_files().await?;
+            info!(
+                "{} files stored in {}:\n{}",
+                files.len(),
+                data_dir.file_name().unwrap().to_string_lossy(),
+                files.join("\n")
+            );
         }
         Commands::Allocate { path, size } => unimplemented!(),
         Commands::Transfer { address } => unimplemented!(),
         Commands::Start => {
             info!("Starting Forage node...");
             signal::ctrl_c().await?;
-            Ok(())
         }
         Commands::Status => {
             info!("Status from Forage node... Press CTRL-C to stop");
@@ -141,4 +193,6 @@ pub async fn try_main() -> Result<()> {
             todo!();
         }
     }
+
+    Ok(())
 }
