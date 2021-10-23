@@ -1,6 +1,6 @@
 [package]
 name = "forage"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 description = "Forage is for Storage"
 repository = "https://github.com/FuzzrNet/Forage"
@@ -35,3 +35,6 @@ tokio = { version = "1.12.0", features = ["full"] }
 toml = "0.5.8"
 torut = "0.2.0"
 walkdir = "2.3.2"
+
+[dev-dependencies]
+serial_test = "0.5.1"
