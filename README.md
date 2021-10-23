@@ -47,16 +47,22 @@
 - [x] Paths are indexed in sqlite (path, file name, file size, creation & modification dates, file hash)
 - [x] Multiple files can be stored
 
-### 0.0.3 - Tor networking
+### 0.0.3 - Crate & Testing
+
+- Exports all CLI commands as functions
+- Serial integration tests added for crate
+- Needs more documentation and tests
+
+### 0.0.4 - Tor networking
 
 - [ ] Generate Onion v3 address
-- [ ] `peer` schema
+- [ ] `peer` SQL
     - [x] Schema
     - [ ] Insert
     - [ ] Query
 - [ ] Open & Receive TCP socket over Tor hidden service
 
-### 0.0.4 - Authenticated encryption
+### 0.0.5 - Authenticated encryption
 
 - [ ] Authentication between storage client and storage provider using Onion v3 addresses
 - [ ] Blake3 keyed hashes as a MAC
