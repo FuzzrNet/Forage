@@ -50,7 +50,7 @@
 ### 0.0.3 - Tor networking
 
 - [ ] Generate Onion v3 address
-- [ ] `peer` schema
+- [ ] `peer` SQL
     - [x] Schema
     - [ ] Insert
     - [ ] Query
