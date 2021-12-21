@@ -6,6 +6,7 @@
 [![Crates.io](https://img.shields.io/crates/v/forage?style=flat-square)](https://docs.rs/forage/latest/forage/)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg?style=flat-square)](http://unlicense.org/)
 [![Matrix](https://img.shields.io/matrix/fuzzrnet:matrix.org?style=flat-square)](https://matrix.to/#/#fuzzrnet:matrix.org)
+![Lines of code](https://img.shields.io/tokei/lines/github/FuzzrNet/Forage?style=flat-square)
 
 ![Tree being struck by lightning (royalty-free stock photo from pixabay)](forage.jpg)
 
