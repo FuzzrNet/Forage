@@ -2,6 +2,11 @@
 
 > *Forage is for Storage*
 
+[![Build Status](https://img.shields.io/github/workflow/status/FuzzrNet/Forage/rust?style=flat-square)](https://github.com/FuzzrNet/Forage/actions/workflows/rust.yml)
+[![Crates.io](https://img.shields.io/crates/v/forage?style=flat-square)](https://docs.rs/forage/latest/forage/)
+[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg?style=flat-square)](http://unlicense.org/)
+[![Matrix](https://img.shields.io/matrix/fuzzrnet:matrix.org?style=flat-square)](https://matrix.to/#/#fuzzrnet:matrix.org)
+
 ![Tree being struck by lightning (royalty-free stock photo from pixabay)](forage.jpg)
 
 - Remote storage: Open storage channels to a remote storage provider over Tor
