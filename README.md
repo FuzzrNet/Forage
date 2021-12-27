@@ -26,7 +26,6 @@
     - [ ] [XChaCha8Blake3Siv encryption](https://github.com/PaulGrandperrin/XChaCha8Blake3Siv)
     - [ ] [Torut Tor controller](https://lib.rs/crates/torut)
     - [ ] [zstd_safe dictionary compression](https://github.com/gyscos/zstd-rs)
-    - [x] [Rusqlite embedded SQL database](https://github.com/rusqlite/rusqlite)
     - [x] [Sled embedded keystore](https://github.com/spacejam/sled)
 - External
     - Local Tor SOCKS proxy
@@ -55,11 +54,16 @@
 
 ### 0.0.3 - Crate & Testing
 
-- Exports all CLI commands as functions
-- Serial integration tests added for crate
-- Needs more documentation and tests
+- [x] Exports all CLI commands as functions
+- [x] Serial integration tests added for crate
 
-### 0.0.4 - Tor networking
+### 0.0.4 - Logstore
+
+- [ ] Replicable append-only log store
+- [ ] Merkleized (at least until https://github.com/oconnor663/bao/issues/35 is resolved)
+- [ ] Deprecate SQLite database
+
+### 0.0.5 - Tor networking
 
 - [ ] Generate Onion v3 address
 - [ ] `peer` SQL
@@ -68,7 +72,7 @@
     - [ ] Query
 - [ ] Open & Receive TCP socket over Tor hidden service
 
-### 0.0.5 - Authenticated encryption
+### 0.0.6 - Authenticated encryption
 
 - [ ] Authentication between storage client and storage provider using Onion v3 addresses
 - [ ] Blake3 keyed hashes as a MAC
@@ -77,6 +81,7 @@
 - [ ] CSPRNGs where RNGs are used
 - [ ] Use randomized padding instead of zeroed padding
 - [ ] Zeroization of private keys after dropped from memory
+- [ ] Authentication of logstore updates from peers
 
 ### 0.1.0 - Proof of Concept
 

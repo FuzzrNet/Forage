@@ -7,6 +7,7 @@ pub mod db;
 pub mod file;
 pub mod hash;
 pub mod net;
+pub mod schema;
 
 pub fn new_client(label: &str, cap: Option<u64>) {
     info!(

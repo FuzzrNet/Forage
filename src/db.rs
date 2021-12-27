@@ -1,5 +1,13 @@
 #![allow(dead_code)]
-use std::{cmp, collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    cmp,
+    collections::HashSet,
+    convert::TryInto,
+    fs::{File, OpenOptions},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 
 use anyhow::Result;
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -7,9 +15,8 @@ use human_bytes::human_bytes;
 use log::error;
 use once_cell::sync::Lazy;
 use rand::{Rng, RngCore};
-use rusqlite::{named_params, params, Connection, OptionalExtension};
-use sled::{Config, Db, IVec, Mode};
-use tokio::sync::Mutex;
+use sled::{Config, Db as KvDb, IVec, Mode};
+use tokio::sync::RwLock;
 
 use crate::{
     config::ENV_CFG,
@@ -29,7 +36,7 @@ const USR_CFG_HASH_KEY: &str = "hash_key";
 const PATHS_TREE: &str = "paths";
 const HASH_TREE: &str = "hash";
 
-static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
+static KV: Lazy<Arc<KvDb>> = Lazy::new(|| {
     Arc::new(
         Config::default()
             .path(ENV_CFG.forage_cfg_dir.join("sled_kv"))
@@ -47,52 +54,80 @@ static DB_KV: Lazy<Arc<Db>> = Lazy::new(|| {
     )
 });
 
+struct Databases {
+
+}
+
+static DB: Lazy<Arc<RwLock<Db>>> = Lazy::new(|| {
+    let path = ENV_CFG.forage_cfg_dir.join("db_log");
+    Arc::new(RwLock::new(Db::new(&path)))
+});
+
+struct Db {
+    file: File,
+}
+
+impl Db {
+    fn new(path: &PathBuf) -> Self {
+        let file = OpenOptions::new()
+            .read(true)
+            .append(true)
+            .create(true)
+            .open(path)
+            .expect("opened db log file");
+
+        Self { file }
+    }
+
+    fn insert(&self, )
+}
+
 /// ## SQLite datastore
 
 /// ### Creates schemas, keeps a connection
-static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
-    let conn = Connection::open(ENV_CFG.forage_cfg_dir.join("sqlite_db").join("forage.db3"))
-        .unwrap_or_else(|e| {
-            error!(
-                "Trouble opening SQLite database: {}. Using a temporary in-memory database.",
-                e
-            );
-            Connection::open_in_memory().unwrap()
-        });
+// static DB_SQL: Lazy<Arc<Mutex<Connection>>> = Lazy::new(|| {
+//     let conn = Connection::open(ENV_CFG.forage_cfg_dir.join("sqlite_db").join("forage.db3"))
+//         .unwrap_or_else(|e| {
+//             error!(
+//                 "Trouble opening SQLite database: {}. Using a temporary in-memory database.",
+//                 e
+//             );
+//             Connection::open_in_memory().unwrap()
+//         });
 
-    conn.execute_batch(
-        "   BEGIN;
-                CREATE TABLE IF NOT EXISTS files (
-                    blake3_hash         CHARACTER(64) PRIMARY KEY,
-                    bao_hash            CHARACTER(64) NOT NULL,
-                    bytes_read          BIGINT NOT NULL,
-                    bytes_written       BIGINT NOT NULL,
-                    min_slice           BIGINT NOT NULL,
-                    max_slice           BIGINT NOT NULL,
-                    path                TEXT NOT NULL,
-                    parent_rev          CHARACTER(64),
-                    mime_type           VARCHAR(255) NOT NULL,
-                    date_created        DATETIME NOT NULL,
-                    date_modified       DATETIME NOT NULL,
-                    date_accessed       DATETIME NOT NULL,
-                    dropped             BOOLEAN NOT NULL,
-                    removed             BOOLEAN NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS peers (
-                    tor_v3              TEXT NOT NULL,
-                    label               TEXT,
-                    date_created        DATETIME NOT NULL,
-                    client              BOOLEAN NOT NULL,
-                    provider            BOOLEAN NOT NULL
-                );
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_file_blake3_hash ON files (blake3_hash);
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_peer_tor_v3 ON peers (tor_v3);
-                COMMIT;",
-    )
-    .unwrap();
+//     conn.execute_batch(
+//         "   BEGIN;
+//                 CREATE TABLE IF NOT EXISTS files (
+//                     blake3_hash         CHARACTER(64) PRIMARY KEY,
+//                     bao_hash            CHARACTER(64) NOT NULL,
+//                     bytes_read          BIGINT NOT NULL,
+//                     bytes_written       BIGINT NOT NULL,
+//                     min_slice           BIGINT NOT NULL,
+//                     max_slice           BIGINT NOT NULL,
+//                     path                TEXT NOT NULL,
+//                     parent_rev          CHARACTER(64),
+//                     mime_type           VARCHAR(255) NOT NULL,
+//                     date_created        DATETIME NOT NULL,
+//                     date_modified       DATETIME NOT NULL,
+//                     date_accessed       DATETIME NOT NULL,
+//                     dropped             BOOLEAN NOT NULL,
+//                     removed             BOOLEAN NOT NULL
+//                 );
+//                 CREATE TABLE IF NOT EXISTS peers (
+//                     tor_v3              TEXT NOT NULL,
+//                     label               TEXT,
+//                     date_created        DATETIME NOT NULL,
+//                     client              BOOLEAN NOT NULL,
+//                     provider            BOOLEAN NOT NULL
+//                 );
+//                 CREATE UNIQUE INDEX IF NOT EXISTS idx_file_blake3_hash ON files (blake3_hash);
+//                 CREATE UNIQUE INDEX IF NOT EXISTS idx_peer_tor_v3 ON peers (tor_v3);
+//                 COMMIT;",
+//     )
+//     .unwrap();
 
-    Arc::new(Mutex::new(conn))
-});
+//     Arc::new(Mutex::new(conn))
+// });
 
 /// ## Persisted User Config
 pub struct UsrCfg {

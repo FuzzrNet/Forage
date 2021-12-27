@@ -18,6 +18,7 @@ rayon = ["blake3/rayon"]
 anyhow = "1.0.44"
 bao = "0.12.0"
 blake3 = "1.1.0"
+cambria = { version = "0.1.0", path = "../cambria" }
 chrono = "0.4.19"
 directories-next = "2.0.0"
 hex = "0.4.3"
@@ -38,3 +39,6 @@ walkdir = "2.3.2"
 
 [dev-dependencies]
 serial_test = "0.5.1"
+
+[build-dependencies]
+cambria = { version = "0.1.0", path = "../cambria" }
