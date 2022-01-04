@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::{
     collections::{BTreeMap, HashSet},
     env::current_dir,
@@ -14,25 +13,12 @@ use log::info;
 use walkdir::WalkDir;
 
 use crate::{
-    db::{
+    hash::{encode, extract, hash_file, infer_mime_type, EncodedFileInfo},
+    model::{
         contains_hash, flush_kv, get_files, get_hashes_by_prefix, get_max_slice, insert_file,
         insert_hash, mark_as_dropped, remove_hash, upsert_path, FileInfo, USR_CONFIG,
     },
-    hash::{encode, extract, hash_file, infer_mime_type, EncodedFileInfo},
 };
-
-pub struct Offset(u64);
-
-impl Offset {
-    pub fn new(offset: u64) -> Self {
-        assert_eq!(offset % 1024, 0);
-        Self(offset / 1024)
-    }
-
-    pub fn get(&self) -> u64 {
-        self.0
-    }
-}
 
 pub fn walk_dir(path: &Path, prefix: &str) -> Result<BTreeMap<PathBuf, blake3::Hash>> {
     let start = Instant::now();

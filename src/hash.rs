@@ -23,6 +23,8 @@ pub struct EncodedFileInfo {
     pub written: u64,
 }
 
+const SLICE_LEN: u64 = 1024;
+
 /// Encode a file by its path using bao encoding.
 /// Returns bao hash, bytes read, bytes written, and the offset from which the bytes were written.
 pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
@@ -37,11 +39,11 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
         .open(get_storage_path().await?.join(hash_hex))?;
 
     let mut encoder = Encoder::new(&encoded_file);
-    let read = copy_reader_to_writer(&mut file, &mut encoder, 0)?;
+    let read = copy_reader_to_writer(&mut file, &mut encoder, 0)? as u64;
 
-    // Generate filler bytes for remainder of 1024 byte slice
-    let len = 1024 - read % 1024;
-    let buf = vec![0u8; len];
+    // Generate filler bytes for remainder of byte slice
+    let len = SLICE_LEN - read % SLICE_LEN;
+    let buf = vec![0u8; len as usize];
     let written = encoded_size((read + len) as u64) as u64;
 
     encoder.write_all(&buf)?;
@@ -55,8 +57,6 @@ pub async fn encode(path: &Path, hash_hex: &str) -> Result<EncodedFileInfo> {
         written,
     })
 }
-
-const SLICE_LEN: u64 = 1024;
 
 pub async fn verify(
     bao_hash: &bao::Hash,

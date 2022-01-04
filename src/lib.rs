@@ -6,6 +6,7 @@ pub mod config;
 pub mod db;
 pub mod file;
 pub mod hash;
+pub mod model;
 pub mod net;
 
 pub fn new_client(label: &str, cap: Option<u64>) {
@@ -61,17 +62,17 @@ pub async fn download(prefix: &str) -> Result<()> {
 pub async fn verify() -> Result<()> {
     info!("Verifying data possession on existing storage channels...");
 
-    let slice_count = db::get_max_slice().await?;
+    let slice_count = model::get_max_slice().await?;
 
     if slice_count == 0 {
         info!("No slices to verify. Try adding some files.");
     } else {
-        let db::SliceIndexInfo {
+        let model::SliceIndexInfo {
             blake3_hash,
             bao_hash,
             file_slice_index: slice_index,
             data_dir_path,
-        } = db::get_random_slice_index(slice_count).await?;
+        } = model::get_random_slice_index(slice_count).await?;
 
         let bao_hash = hash::parse_bao_hash(&bao_hash)?;
         let encoded_path = config::get_storage_path().await?.join(blake3_hash);
@@ -96,7 +97,7 @@ pub async fn verify() -> Result<()> {
 pub async fn list_files(_prefix: &str, _depth: usize) -> Result<()> {
     // TODO: support prefix and depth parameters
     let data_dir = config::get_data_dir().await?;
-    let files = db::list_files().await?;
+    let files = model::list_files().await?;
     info!(
         "{} files stored in {}:\n{}",
         files.len(),
