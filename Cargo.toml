@@ -17,17 +17,22 @@ rayon = ["blake3/rayon"]
 [dependencies]
 anyhow = "1.0.44"
 bao = "0.12.0"
+bincode = "1.3.3"
 blake3 = "1.1.0"
 chrono = "0.4.19"
+dipa = { version = "0.1.1", features = ["derive"] }
 directories-next = "2.0.0"
+dryoc = "0.3.11"
+fd-lock = "3.0.2"
 hex = "0.4.3"
 human_bytes = "0.3.0"
 infer = "0.5.0"
 log = "0.4.14"
 once_cell = "1.8.0"
+par-stream = { version = "0.10.0", features = ["runtime-tokio"] }
 pretty_env_logger = "0.4.0"
 rand = "0.8.4"
-rusqlite = { version = "0.26.1", features = ["bundled", "backup"] }
+rusqlite = { version = "0.26.1", features = ["bundled", "backup"] } # Remove
 serde = { version = "1.0", features = ["derive"] }
 sled = { version = "0.34.7", features = ["compression"] }
 structopt = "0.3"
@@ -35,6 +40,7 @@ tokio = { version = "1.12.0", features = ["full"] }
 toml = "0.5.8"
 torut = "0.2.0"
 walkdir = "2.3.2"
+zstd = "0.9.1"
 
 [dev-dependencies]
 serial_test = "0.5.1"
