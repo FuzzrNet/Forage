@@ -3,10 +3,10 @@ use std::{env, path::PathBuf};
 use anyhow::Result;
 use directories_next::{BaseDirs, UserDirs};
 use once_cell::sync::Lazy;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{create_dir_all, OpenOptions},
-    io::AsyncReadExt,
+    io::{AsyncReadExt, AsyncWriteExt},
 };
 
 pub struct EnvCfg {
@@ -36,23 +36,19 @@ fn init_env_cfg() -> Result<EnvCfg> {
 
 pub static ENV_CFG: Lazy<EnvCfg> = Lazy::new(|| init_env_cfg().unwrap());
 
-#[derive(Deserialize)]
-struct VolumeEntry {
-    path: String,   // Path to mounted volume
+#[derive(Serialize, Deserialize)]
+pub struct Volume {
+    path: PathBuf,  // Path to mounted volume
     allocated: u64, // Allocated capacity in megabytes
 }
 
 #[derive(Deserialize)]
 struct SysCfgFile {
     forage_data_dir: Option<String>,
-    volume: Option<Vec<VolumeEntry>>,
+    volume: Option<Vec<Volume>>,
 }
 
-pub struct Volume {
-    pub path: PathBuf,
-    pub allocated: u64,
-}
-
+#[derive(Serialize)]
 pub struct SysCfg {
     pub forage_data_dir: PathBuf,
     pub volumes: Vec<Volume>,
@@ -65,15 +61,15 @@ pub async fn get_cfg() -> Result<SysCfg> {
     let mut cfg_contents = vec![];
 
     // Creates new empty config file if it doesn't exist
-    OpenOptions::new()
+    let mut cfg_file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
         .open(&ENV_CFG.forage_cfg_file)
-        .await?
-        .read_to_end(&mut cfg_contents)
         .await?;
+
+    cfg_file.read_to_end(&mut cfg_contents).await?;
 
     let sys_cfg: SysCfgFile = toml::from_slice(&cfg_contents)?;
 
@@ -105,10 +101,16 @@ pub async fn get_cfg() -> Result<SysCfg> {
 
     create_dir_all(&forage_data_dir).await?;
 
-    Ok(SysCfg {
+    let config = SysCfg {
         forage_data_dir,
         volumes,
-    })
+    };
+
+    // Write parsed config back out to config file
+    let toml = toml::to_string_pretty(&config)?;
+    cfg_file.write_all(toml.as_bytes()).await?;
+
+    Ok(config)
 }
 
 pub async fn get_storage_path() -> Result<PathBuf> {
