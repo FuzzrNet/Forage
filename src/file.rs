@@ -49,7 +49,7 @@ pub fn walk_dir(path: &Path, prefix: &str) -> Result<BTreeMap<PathBuf, blake3::H
                 .replace(&cwd, "")
                 .starts_with(&prefix)
             {
-                let blake3_hash = hash_file(&entry_path, &USR_CONFIG.hash_key.to_owned())?;
+                let blake3_hash = hash_file(&entry_path, &USR_CONFIG.hash_key)?;
 
                 map.insert(entry_path, blake3_hash);
             }
@@ -86,7 +86,7 @@ pub async fn upload_path(prefix: &str, data_dir: &Path) -> Result<()> {
             bao_hash,
             read,
             written,
-        } = encode(&file_path, &blake3_hash.to_hex().to_string()).await?;
+        } = encode(&file_path, &blake3_hash.to_hex()).await?;
 
         let parent_rev = upsert_path(&file_path.to_string_lossy(), blake3_bytes)?;
         let mime_type = infer_mime_type(&file_path)?;

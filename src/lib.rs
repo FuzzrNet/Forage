@@ -1,6 +1,10 @@
+use std::thread;
+
 use anyhow::Result;
 use log::{error, info, warn};
 use tokio::signal;
+
+use crate::net::listen;
 
 pub mod config;
 pub mod db;
@@ -109,7 +113,11 @@ pub async fn list_files(_prefix: &str, _depth: usize) -> Result<()> {
 
 pub async fn start() -> Result<()> {
     info!("Starting Forage node...");
+
+    let _net_task = thread::spawn(move || listen(Some("0.0.0.0:5000".to_string())));
     signal::ctrl_c().await?;
+
+    info!("Forage shutting down ..");
 
     Ok(())
 }
